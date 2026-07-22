@@ -1,0 +1,114 @@
+services:
+  # -------------------------------------------------------------
+  # 1. Qdrant (Vector Database)
+  # -------------------------------------------------------------
+  - type: web
+    name: aca-qdrant
+    env: image
+    image: qdrant/qdrant:latest
+    plan: free # Note: Persistence requires a disk, which needs Starter plan.
+    port: 6333
+    # If upgrading to Starter, uncomment below for persistent storage:
+    # disk:
+    #   name: qdrant-data
+    #   mountPath: /qdrant/storage
+    #   sizeGB: 10
+
+  # -------------------------------------------------------------
+  # 2. Redis (Celery Message Broker)
+  # -------------------------------------------------------------
+  - type: redis
+    name: aca-redis
+    plan: free
+    ipAllowList: [] # empty list defaults to allowing all internal traffic
+
+  # -------------------------------------------------------------
+  # 3. FastAPI Backend
+  # -------------------------------------------------------------
+  - type: web
+    name: aca-backend
+    env: docker
+    dockerContext: ./backend
+    dockerfilePath: Dockerfile
+    port: 8000
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aca-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: aca-redis
+          property: connectionString
+      - key: QDRANT_HOST
+        fromService:
+          type: web
+          name: aca-qdrant
+          property: host
+      - key: QDRANT_PORT
+        value: 6333
+      - key: GEMINI_API_KEY
+        sync: false # Set this value manually in the Render dashboard
+      - key: JWT_SECRET_KEY
+        generateValue: true # Render will generate a cryptographically secure random key
+      - key: FRONTEND_URL
+        value: "*"
+
+  # -------------------------------------------------------------
+  # 4. Celery Ingestion Worker
+  # -------------------------------------------------------------
+  - type: worker
+    name: aca-celery
+    env: docker
+    dockerContext: ./backend
+    dockerfilePath: Dockerfile
+    dockerCommand: python -m celery -A workers.celery_app worker --loglevel=info
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aca-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: aca-redis
+          property: connectionString
+      - key: QDRANT_HOST
+        fromService:
+          type: web
+          name: aca-qdrant
+          property: host
+      - key: QDRANT_PORT
+        value: 6333
+      - key: GEMINI_API_KEY
+        sync: false # Set this value manually in the Render dashboard
+
+  # -------------------------------------------------------------
+  # 5. Next.js Frontend
+  # -------------------------------------------------------------
+  - type: web
+    name: aca-frontend
+    env: docker
+    dockerContext: ./frontend
+    dockerfilePath: Dockerfile
+    port: 3000
+    plan: free
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: aca-backend
+          property: url
+          # Render will auto-inject the backend URL, Next.js builder reads it at build time.
+
+# -------------------------------------------------------------
+# Databases: Managed PostgreSQL Instance
+# -------------------------------------------------------------
+databases:
+  - name: aca-db
+    databaseName: aca_db
+    user: aca_user
+    plan: free

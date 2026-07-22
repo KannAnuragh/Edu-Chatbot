@@ -5,7 +5,7 @@ Loads all settings from environment variables with sensible defaults.
 """
 
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, model_validator
 from typing import Optional
 
 
@@ -19,7 +19,18 @@ class Settings(BaseSettings):
 
     # --- Database ---
     DATABASE_URL: str = "postgresql+asyncpg://aca_user:aca_secret@localhost:5433/aca_db"
-    DATABASE_URL_SYNC: str = "postgresql://aca_user:aca_secret@localhost:5433/aca_db"
+    DATABASE_URL_SYNC: str = ""
+
+    @model_validator(mode='after')
+    def validate_db_urls(self) -> 'Settings':
+        # If DATABASE_URL starts with postgresql:// and doesn't contain asyncpg, convert to asyncpg url
+        if self.DATABASE_URL.startswith("postgresql://") and "+asyncpg" not in self.DATABASE_URL:
+            self.DATABASE_URL = self.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+        
+        # Derive sync URL from async URL if sync URL is not set
+        if not self.DATABASE_URL_SYNC:
+            self.DATABASE_URL_SYNC = self.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://", 1)
+        return self
 
     # --- Redis ---
     REDIS_URL: str = "redis://localhost:6380/0"
