@@ -4,9 +4,9 @@ services:
   # -------------------------------------------------------------
   - type: web
     name: aca-qdrant
-    env: docker
-    docker:
-      image: qdrant/qdrant:latest
+    env: image
+    image:
+      url: docker.io/qdrant/qdrant:latest
     plan: free # Note: Persistence requires a disk, which needs Starter plan.
     # If upgrading to Starter, uncomment below for persistent storage:
     # disk:
