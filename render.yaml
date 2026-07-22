@@ -69,7 +69,7 @@ services:
       - key: NEXT_PUBLIC_API_URL
         value: "/api/v1"
       - key: BACKEND_API_URL
-        value: "http://aca-backend:8000"
+        value: "http://aca-backend:10000"
 
 # -------------------------------------------------------------
 # Databases: Managed PostgreSQL Instance
