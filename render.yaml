@@ -30,7 +30,7 @@ services:
     env: docker
     dockerContext: ./backend
     dockerfilePath: backend/Dockerfile
-    dockerCommand: sh -c "python create_users.py && (python -m celery -A workers.celery_app worker --loglevel=info &) && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    dockerCommand: python start.py
     plan: free
     envVars:
       - key: DATABASE_URL
