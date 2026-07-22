@@ -167,14 +167,17 @@ async def startup_event():
     max_retries = 10
     for attempt in range(max_retries):
         try:
+            # 1. Create tables
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
                 
-                # Automatically add badge_color if missing
-                try:
+            # 2. Automatically add badge_color if missing (in a separate transaction)
+            try:
+                async with engine.begin() as conn:
                     await conn.execute(text("ALTER TABLE courses ADD COLUMN badge_color VARCHAR(50) DEFAULT 'emerald'"))
-                except Exception:
-                    pass
+            except Exception:
+                pass
+
             print("Database successfully initialized during startup.")
             break
         except Exception as e:
