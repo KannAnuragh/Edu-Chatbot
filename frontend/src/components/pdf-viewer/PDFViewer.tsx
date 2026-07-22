@@ -56,10 +56,14 @@ const PDFViewer = forwardRef<PDFViewerHandle, PDFViewerProps>(
 
     const getPdfUrl = (doc: DocType) => {
       if (!doc || !doc.file_path) return "";
-      let baseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1").replace(/\/api\/v1\/?$/, "");
-      if (typeof window !== "undefined") {
+      let baseUrl = "";
+      if (process.env.NEXT_PUBLIC_API_URL) {
+        baseUrl = process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/v1\/?$/, "");
+      } else if (typeof window !== "undefined") {
         const hostname = window.location.hostname;
         baseUrl = `http://${hostname}:8001`;
+      } else {
+        baseUrl = "http://localhost:8001";
       }
       const cleanPath = doc.file_path.replace(/\\/g, "/").replace(/^\.?\//, "");
       return `${baseUrl}/${cleanPath}`;
