@@ -6,17 +6,24 @@ import sys
 print("Starting database setup (create_users.py)...")
 try:
     from core.config import settings
-    # Print the database URLs with password masked for debugging
-    def mask_password(url: str) -> str:
-        if "@" in url:
-            prefix, rest = url.split("@", 1)
+    # Print all env keys for debugging (without exposing values)
+    print("Environment Variable Keys available in container:")
+    db_keys = []
+    for key in sorted(os.environ.keys()):
+        if "DB" in key.upper() or "POSTGRES" in key.upper() or "URL" in key.upper():
+            db_keys.append(key)
+        else:
+            print(f"  {key}")
+    print("\nDatabase/URL related Environment Variables:")
+    for key in db_keys:
+        val = os.environ.get(key, "")
+        # Mask password
+        if "@" in val:
+            prefix, rest = val.split("@", 1)
             if ":" in prefix:
                 proto_user, _ = prefix.rsplit(":", 1)
-                return f"{proto_user}:***@{rest}"
-        return url
-
-    print(f"DATABASE_URL: {mask_password(settings.DATABASE_URL)}")
-    print(f"DATABASE_URL_SYNC: {mask_password(settings.DATABASE_URL_SYNC)}")
+                val = f"{proto_user}:***@{rest}"
+        print(f"  {key} = {val}")
 except Exception as e:
     print(f"Error printing settings: {e}")
 
