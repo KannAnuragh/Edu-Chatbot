@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     # --- CORS ---
     FRONTEND_URL: str = "http://localhost:3001"
 
+    # --- Default Accounts ---
+    DEFAULT_ADMIN_EMAIL: str = "admin@gmail.com"
+    DEFAULT_ADMIN_PASSWORD: str = "asdfasdf"
+
     # --- OCR ---
     FORCE_OCR: bool = False
     OCR_LANGUAGES: str = "eng+mal"

@@ -114,7 +114,7 @@ async def ensure_default_users():
     
     async with async_session_factory() as session:
         # Create Admin
-        admin_email = "admin@gmail.com"
+        admin_email = settings.DEFAULT_ADMIN_EMAIL
         admin_query = await session.execute(select(User).where(User.email == admin_email))
         admin = admin_query.scalar_one_or_none()
         
@@ -122,13 +122,13 @@ async def ensure_default_users():
             admin = User(
                 name="Admin User",
                 email=admin_email,
-                password_hash=hash_password("asdfasdf"),
+                password_hash=hash_password(settings.DEFAULT_ADMIN_PASSWORD),
                 role=UserRole.ADMIN
             )
             session.add(admin)
             print(f"Created admin user: {admin_email}")
         else:
-            admin.password_hash = hash_password("asdfasdf")
+            admin.password_hash = hash_password(settings.DEFAULT_ADMIN_PASSWORD)
             admin.role = UserRole.ADMIN
             print(f"Admin user password verified/updated on startup.")
 
