@@ -95,15 +95,27 @@ async def startup_event():
         # Import all models to register them with Base
         import models  # noqa: F401
         from sqlalchemy import text
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-            
-            # Automatically add badge_color if missing
+        import asyncio
+        
+        max_retries = 10
+        for attempt in range(max_retries):
             try:
-                await conn.execute(text("ALTER TABLE courses ADD COLUMN badge_color VARCHAR(50) DEFAULT 'emerald'"))
+                async with engine.begin() as conn:
+                    await conn.run_sync(Base.metadata.create_all)
+                    
+                    # Automatically add badge_color if missing
+                    try:
+                        await conn.execute(text("ALTER TABLE courses ADD COLUMN badge_color VARCHAR(50) DEFAULT 'emerald'"))
+                    except Exception:
+                        pass
+                print("Database successfully initialized during startup.")
+                break
             except Exception as e:
-                # Column likely already exists
-                pass
+                if attempt == max_retries - 1:
+                    print(f"Failed to connect to DB during Uvicorn startup: {e}")
+                    raise
+                print(f"Database not ready, retrying in 3 seconds... ({attempt+1}/{max_retries})")
+                await asyncio.sleep(3)
 
 
 # --- Serve uploaded files (development only) ---
