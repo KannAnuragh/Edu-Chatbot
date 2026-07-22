@@ -106,6 +106,50 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={"detail": exc.errors(), "body": exc.body},
     )
 
+async def ensure_default_users():
+    from sqlalchemy import select
+    from core.database import async_session_factory
+    from models.user import User, UserRole
+    from auth.hashing import hash_password
+    
+    async with async_session_factory() as session:
+        # Create Admin
+        admin_email = "admin@gmail.com"
+        admin_query = await session.execute(select(User).where(User.email == admin_email))
+        admin = admin_query.scalar_one_or_none()
+        
+        if not admin:
+            admin = User(
+                name="Admin User",
+                email=admin_email,
+                password_hash=hash_password("asdfasdf"),
+                role=UserRole.ADMIN
+            )
+            session.add(admin)
+            print(f"Created admin user: {admin_email}")
+        else:
+            admin.password_hash = hash_password("asdfasdf")
+            admin.role = UserRole.ADMIN
+            print(f"Admin user password verified/updated on startup.")
+
+        # Create Student
+        student_email = "student@example.com"
+        student_query = await session.execute(select(User).where(User.email == student_email))
+        student = student_query.scalar_one_or_none()
+        
+        if not student:
+            student = User(
+                name="Student User",
+                email=student_email,
+                password_hash=hash_password("password123"),
+                role=UserRole.STUDENT
+            )
+            session.add(student)
+            print(f"Created student user: {student_email}")
+            
+        await session.commit()
+
+
 # --- Startup event ---
 @app.on_event("startup")
 async def startup_event():
@@ -114,32 +158,37 @@ async def startup_event():
     upload_dir = Path(settings.UPLOAD_DIR)
     upload_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create database tables (in development)
-    if settings.DEBUG:
-        # Import all models to register them with Base
-        import models  # noqa: F401
-        from sqlalchemy import text
-        import asyncio
-        
-        max_retries = 10
-        for attempt in range(max_retries):
-            try:
-                async with engine.begin() as conn:
-                    await conn.run_sync(Base.metadata.create_all)
-                    
-                    # Automatically add badge_color if missing
-                    try:
-                        await conn.execute(text("ALTER TABLE courses ADD COLUMN badge_color VARCHAR(50) DEFAULT 'emerald'"))
-                    except Exception:
-                        pass
-                print("Database successfully initialized during startup.")
-                break
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    print(f"Failed to connect to DB during Uvicorn startup: {e}")
-                    raise
-                print(f"Database not ready, retrying in 3 seconds... ({attempt+1}/{max_retries})")
-                await asyncio.sleep(3)
+    # Initialize database tables
+    # Import all models to register them with Base
+    import models  # noqa: F401
+    from sqlalchemy import text
+    import asyncio
+    
+    max_retries = 10
+    for attempt in range(max_retries):
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+                
+                # Automatically add badge_color if missing
+                try:
+                    await conn.execute(text("ALTER TABLE courses ADD COLUMN badge_color VARCHAR(50) DEFAULT 'emerald'"))
+                except Exception:
+                    pass
+            print("Database successfully initialized during startup.")
+            break
+        except Exception as e:
+            if attempt == max_retries - 1:
+                print(f"Failed to connect to DB during Uvicorn startup: {e}")
+                raise
+            print(f"Database not ready, retrying in 3 seconds... ({attempt+1}/{max_retries})")
+            await asyncio.sleep(3)
+
+    # Ensure default users exist
+    try:
+        await ensure_default_users()
+    except Exception as e:
+        print(f"Error ensuring default users: {e}")
 
 
 # --- Serve uploaded files (development only) ---

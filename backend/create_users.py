@@ -25,13 +25,13 @@ async def create_users():
             admin = User(
                 name="Admin User",
                 email=admin_email,
-                password_hash=hash_password("admin123"),
+                password_hash=hash_password("asdfasdf"),
                 role=UserRole.ADMIN
             )
             session.add(admin)
             print(f"Created admin user: {admin_email}")
         else:
-            admin.password_hash = hash_password("admin123")
+            admin.password_hash = hash_password("asdfasdf")
             admin.role = UserRole.ADMIN
             print(f"Admin user already exists, updated password and role.")
 
