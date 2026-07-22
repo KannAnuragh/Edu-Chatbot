@@ -4,7 +4,10 @@ const getApiUrl = () => {
   }
   if (typeof window !== "undefined") {
     const hostname = window.location.hostname;
-    return `http://${hostname}:8001/api/v1`;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:8001/api/v1";
+    }
+    return "/api/v1";
   }
   return "http://localhost:8001/api/v1";
 };

@@ -22,13 +22,37 @@ app = FastAPI(
 )
 
 # --- CORS middleware ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL, "http://localhost:3000", "http://localhost:3001"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+frontend_origins = [o.strip() for o in settings.FRONTEND_URL.split(",") if o.strip()]
+origins = []
+has_wildcard = False
+
+for origin in frontend_origins:
+    if origin == "*":
+        has_wildcard = True
+    else:
+        origins.append(origin.rstrip("/"))
+
+# Add common local development origins
+for local_origin in ["http://localhost:3000", "http://localhost:3001"]:
+    if local_origin not in origins:
+        origins.append(local_origin)
+
+if has_wildcard:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"https?://.*",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # --- Include API routes ---
 app.include_router(v1_router)

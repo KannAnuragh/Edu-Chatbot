@@ -61,7 +61,11 @@ const PDFViewer = forwardRef<PDFViewerHandle, PDFViewerProps>(
         baseUrl = process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/v1\/?$/, "");
       } else if (typeof window !== "undefined") {
         const hostname = window.location.hostname;
-        baseUrl = `http://${hostname}:8001`;
+        if (hostname === "localhost" || hostname === "127.0.0.1") {
+          baseUrl = `http://${hostname}:8001`;
+        } else {
+          baseUrl = ""; // Relative url for production proxying
+        }
       } else {
         baseUrl = "http://localhost:8001";
       }
