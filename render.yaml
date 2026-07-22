@@ -36,12 +36,12 @@ services:
       - key: DATABASE_URL
         fromDatabase:
           name: aca-db
-          property: connectionString
+          property: internalConnectionString
       - key: REDIS_URL
         fromService:
           type: redis
           name: aca-redis
-          property: connectionString
+          property: internalConnectionString
       - key: QDRANT_HOST
         fromService:
           type: web

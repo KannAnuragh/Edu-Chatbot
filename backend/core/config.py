@@ -23,6 +23,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode='after')
     def validate_db_urls(self) -> 'Settings':
+        # Fix Render's default "postgres://" scheme
+        if self.DATABASE_URL.startswith("postgres://"):
+            self.DATABASE_URL = self.DATABASE_URL.replace("postgres://", "postgresql://", 1)
+            
         # If DATABASE_URL starts with postgresql:// and doesn't contain asyncpg, convert to asyncpg url
         if self.DATABASE_URL.startswith("postgresql://") and "+asyncpg" not in self.DATABASE_URL:
             self.DATABASE_URL = self.DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
