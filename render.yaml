@@ -96,11 +96,9 @@ services:
     plan: free
     envVars:
       - key: NEXT_PUBLIC_API_URL
-        fromService:
-          type: web
-          name: aca-backend
-          property: url
-          # Render will auto-inject the backend URL, Next.js builder reads it at build time.
+        value: "/api/v1"
+      - key: BACKEND_API_URL
+        value: "http://aca-backend:8000"
 
 # -------------------------------------------------------------
 # Databases: Managed PostgreSQL Instance
