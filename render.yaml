@@ -28,9 +28,9 @@ services:
   - type: web
     name: aca-backend
     env: docker
-    dockerContext: ./backend
+    dockerContext: .
     dockerfilePath: backend/Dockerfile
-    dockerCommand: python start.py
+    dockerCommand: cd backend && python start.py
     plan: free
     envVars:
       - key: DATABASE_URL
