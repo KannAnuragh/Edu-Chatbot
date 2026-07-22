@@ -16,7 +16,12 @@ from ingestion.pipeline import run_ingestion_pipeline
 
 # Create a synchronous database engine for Celery
 # Celery runs in a synchronous context, so we can't easily use AsyncSession
-sync_engine = create_engine(settings.DATABASE_URL_SYNC)
+sync_engine = create_engine(
+    settings.DATABASE_URL_SYNC,
+    pool_size=3,
+    max_overflow=2,
+    pool_pre_ping=True,
+)
 SyncSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)
 
 
