@@ -4,10 +4,10 @@ services:
   # -------------------------------------------------------------
   - type: web
     name: aca-qdrant
-    env: image
-    image: qdrant/qdrant:latest
+    env: docker
+    docker:
+      image: qdrant/qdrant:latest
     plan: free # Note: Persistence requires a disk, which needs Starter plan.
-    port: 6333
     # If upgrading to Starter, uncomment below for persistent storage:
     # disk:
     #   name: qdrant-data
@@ -30,7 +30,6 @@ services:
     env: docker
     dockerContext: ./backend
     dockerfilePath: Dockerfile
-    port: 8000
     plan: free
     envVars:
       - key: DATABASE_URL
@@ -94,7 +93,6 @@ services:
     env: docker
     dockerContext: ./frontend
     dockerfilePath: Dockerfile
-    port: 3000
     plan: free
     envVars:
       - key: NEXT_PUBLIC_API_URL
