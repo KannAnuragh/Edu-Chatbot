@@ -28,10 +28,7 @@ langdetect==1.0.9
 pytesseract==0.3.13
 Pillow==11.1.0
 
-# --- Embeddings ---
-sentence-transformers==3.1.1
-torch==2.4.1
-
+# --- Embeddings (Using Gemini instead) ---
 # --- Vector Database ---
 qdrant-client==1.11.3
 

@@ -30,7 +30,6 @@ services:
     env: docker
     dockerContext: .
     dockerfilePath: backend/Dockerfile
-    dockerCommand: cd backend && python start.py
     plan: free
     envVars:
       - key: DATABASE_URL

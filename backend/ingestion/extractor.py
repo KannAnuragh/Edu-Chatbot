@@ -56,6 +56,10 @@ def extract_text_from_pdf(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
                         lang=settings.OCR_LANGUAGES
                     )
                     text = ocr_text.strip()
+                    
+                    # Explicit cleanup
+                    img.close()
+                    del img, img_data, pix
                 except Exception as ocr_err:
                     print(f"OCR failed for {file_path} page {i}: {ocr_err}")
             
@@ -70,3 +74,10 @@ def extract_text_from_pdf(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
     except Exception as e:
         print(f"PDF Extraction error for {file_path}: {e}")
         raise e
+    finally:
+        if 'doc' in locals() and hasattr(doc, 'close'):
+            doc.close()
+        
+        # Explicit garbage collection to free up memory from PDF chunks
+        import gc
+        gc.collect()

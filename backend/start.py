@@ -37,7 +37,9 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 print("Starting Celery background worker (solo pool)...")
 celery_process = subprocess.Popen([
-    sys.executable, "-m", "celery", "-A", "workers.celery_app", "worker", "--pool=solo", "--loglevel=info"
+    sys.executable, "-m", "celery", "-A", "workers.celery_app", "worker", 
+    "--pool=solo", "--loglevel=info",
+    "--max-tasks-per-child=10", "--max-memory-per-child=200000"
 ])
 
 # 3. Start FastAPI Uvicorn server in the foreground
