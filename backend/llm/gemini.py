@@ -68,13 +68,13 @@ class GeminiClient:
         
         try:
             print(f"🤖 [GEMINI API CALL] Model: {settings.LLM_MODEL} | Prompt length: {len(prompt)} chars")
-            response_stream = client.models.generate_content_stream(
+            response_stream = client.aio.models.generate_content_stream(
                 model=settings.LLM_MODEL,
                 contents=prompt,
                 config=self._get_config()
             )
             
-            for chunk in response_stream:
+            async for chunk in response_stream:
                 if chunk.text:
                     yield chunk.text
                     

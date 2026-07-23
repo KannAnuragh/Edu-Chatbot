@@ -5,6 +5,7 @@ Handles searching Qdrant and formatting sources.
 """
 
 from typing import List, Dict, Any
+import asyncio
 
 from embeddings.model import embedding_model
 from qdrant_module.client import QdrantService
@@ -27,8 +28,8 @@ class RetrievalService:
         Embed the query and search Qdrant for relevant chunks.
         Strictly scoped to the user's isolated collection and filtered by course.
         """
-        # 1. Embed query
-        query_vector = embedding_model.encode_query(query)
+        # 1. Embed query (Run CPU-bound task in a separate thread to prevent blocking event loop)
+        query_vector = await asyncio.to_thread(embedding_model.encode_query, query)
         
         # 2. Search Qdrant
         results = await self.qdrant.search(

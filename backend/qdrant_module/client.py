@@ -16,10 +16,13 @@ class QdrantService:
     def __init__(self):
         # We use the sync client for Celery workers and async for FastAPI
         self.sync_client = QdrantClient(host=settings.QDRANT_HOST, port=settings.QDRANT_PORT)
+        self._async_client = None
         
     async def get_async_client(self):
         """Get an async client instance."""
-        return AsyncQdrantClient(url=f"http://{settings.QDRANT_HOST}:{settings.QDRANT_PORT}")
+        if self._async_client is None:
+            self._async_client = AsyncQdrantClient(url=f"http://{settings.QDRANT_HOST}:{settings.QDRANT_PORT}")
+        return self._async_client
 
     def _get_collection_name(self, user_id: str) -> str:
         """Get the global collection name for course documents."""
