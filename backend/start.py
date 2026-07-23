@@ -1,4 +1,5 @@
 import subprocess
+# Cache invalidation comment to force Render to re-run COPY command
 import os
 import sys
 
