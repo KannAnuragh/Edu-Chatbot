@@ -19,8 +19,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create uploads directory
-RUN mkdir -p /app/uploads
+RUN mkdir -p /app/uploads && mkdir -p /app/backend/uploads
 
 EXPOSE 8000
 
-CMD ["python", "start.py"]
+# Run from either /app or /app/backend depending on the build context
+CMD ["sh", "-c", "if [ -f start.py ]; then python start.py; elif [ -f backend/start.py ]; then cd backend && python start.py; else echo 'Error: start.py not found'; exit 1; fi"]
