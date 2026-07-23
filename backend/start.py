@@ -29,10 +29,14 @@ except Exception as e:
 
 subprocess.run([sys.executable, "create_users.py"], check=True)
 
-# 2. Start Celery worker in the background
-print("Starting Celery background worker...")
+# 2. Limit memory usage for PyTorch/Celery on Render free tier
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+
+print("Starting Celery background worker (solo pool)...")
 celery_process = subprocess.Popen([
-    sys.executable, "-m", "celery", "-A", "workers.celery_app", "worker", "--loglevel=info"
+    sys.executable, "-m", "celery", "-A", "workers.celery_app", "worker", "--pool=solo", "--loglevel=info"
 ])
 
 # 3. Start FastAPI Uvicorn server in the foreground
