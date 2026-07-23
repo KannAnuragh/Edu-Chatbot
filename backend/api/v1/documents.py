@@ -93,7 +93,7 @@ async def upload_document(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/", response_model=DocumentListResponse)
+@router.get("", response_model=DocumentListResponse)
 async def list_documents(
     course_id: UUID,
     db: AsyncSession = Depends(get_db),

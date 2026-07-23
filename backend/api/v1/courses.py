@@ -24,7 +24,7 @@ from schemas.course import (
 router = APIRouter(prefix="/courses", tags=["Courses"])
 
 
-@router.post("/", response_model=CourseResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=CourseResponse, status_code=status.HTTP_201_CREATED)
 async def create_course(
     request: CourseCreateRequest,
     db: AsyncSession = Depends(get_db),
@@ -43,7 +43,7 @@ async def create_course(
     return await _get_course_response(db, course.id)
 
 
-@router.get("/", response_model=CourseListResponse)
+@router.get("", response_model=CourseListResponse)
 async def list_courses(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),

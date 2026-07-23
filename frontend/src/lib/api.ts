@@ -24,6 +24,11 @@ export class ApiClient {
   private async request(endpoint: string, options: RequestInit = {}) {
     const url = `${getApiUrl()}${endpoint}`;
     const headers = { ...this.getHeaders(), ...options.headers };
+    
+    // Debug log to ensure token is attached
+    if (typeof window !== "undefined" && url.includes("/courses")) {
+        console.log(`[API] Requesting ${url}. Token present: ${!!headers["Authorization"]}`);
+    }
 
     const response = await fetch(url, { ...options, headers });
 
@@ -62,7 +67,7 @@ export class ApiClient {
 
   // --- Courses / Projects ---
   async getCourses() {
-    return this.request("/courses/");
+    return this.request("/courses");
   }
 
   async getEnrolledCourses() {
@@ -74,7 +79,7 @@ export class ApiClient {
   }
 
   async createCourse(title: string, desc: string = "", badgeColor: string = "emerald") {
-    return this.request('/courses/', {
+    return this.request('/courses', {
       method: 'POST',
       body: JSON.stringify({ title, description: desc, badge_color: badgeColor }),
     });
@@ -119,7 +124,7 @@ export class ApiClient {
 
   // --- Documents ---
   async getDocuments(courseId: string) {
-    return this.request(`/courses/${courseId}/documents/`);
+    return this.request(`/courses/${courseId}/documents`);
   }
 
   async uploadDocument(courseId: string, file: File) {
