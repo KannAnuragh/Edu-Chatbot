@@ -13,7 +13,7 @@ from sqlalchemy import select
 from models.conversation import Conversation, Message, MessageRole
 from services.retrieval_service import RetrievalService
 from llm.prompts import build_rag_prompt
-from llm.gemini import gemini_client
+from providers.factory import llm_client
 
 
 from core.database import async_session_factory
@@ -125,7 +125,7 @@ class ChatService:
                 # 6. Stream LLM response
                 full_response = ""
                 try:
-                    async for text_chunk in gemini_client.stream_response(prompt):
+                    async for text_chunk in llm_client.stream_response(prompt):
                         if text_chunk:
                             full_response += text_chunk
                             # SSE format: event: token\ndata: chunk\n\n

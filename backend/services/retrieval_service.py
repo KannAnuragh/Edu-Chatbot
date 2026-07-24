@@ -7,15 +7,14 @@ Handles searching Qdrant and formatting sources.
 from typing import List, Dict, Any
 import asyncio
 
-from embeddings.model import embedding_model
-from qdrant_module.client import QdrantService
+from providers.factory import embedding_model, get_vector_db_client
 
 
 class RetrievalService:
     """Service for retrieving relevant document chunks."""
     
     def __init__(self):
-        self.qdrant = QdrantService()
+        self.vector_db = get_vector_db_client()
 
     async def retrieve_relevant_chunks(
         self, 
@@ -31,8 +30,8 @@ class RetrievalService:
         # 1. Embed query (Run CPU-bound task in a separate thread to prevent blocking event loop)
         query_vector = await asyncio.to_thread(embedding_model.encode_query, query)
         
-        # 2. Search Qdrant
-        results = await self.qdrant.search(
+        # 2. Search Vector DB
+        results = await self.vector_db.search(
             user_id=user_id,
             course_id=course_id,
             query_vector=query_vector,

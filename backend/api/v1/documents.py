@@ -183,11 +183,11 @@ async def delete_document(
         except OSError:
             pass
             
-    # Delete from Qdrant (Ideally done async, doing sync for simplicity here)
+    # Delete from Vector DB
     try:
-        from qdrant_module.client import QdrantService
-        qdrant = QdrantService()
-        await qdrant.delete_document_vectors(str(admin_user.id), str(document.id))
+        from providers.factory import get_vector_db_client
+        vector_db = get_vector_db_client()
+        await vector_db.delete_document_vectors(str(admin_user.id), str(document.id))
     except Exception:
         pass
         

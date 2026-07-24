@@ -48,13 +48,25 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_MINUTES: int = 1440  # 24 hours
 
+    # --- Providers ---
+    LLM_PROVIDER: str = "gemini" # gemini | cloudflare
+    EMBEDDING_PROVIDER: str = "local" # local | cloudflare
+    VECTOR_DB_PROVIDER: str = "qdrant" # qdrant | cloudflare
+
+    # --- Cloudflare Settings ---
+    CLOUDFLARE_ACCOUNT_ID: str = ""
+    CLOUDFLARE_API_TOKEN: str = ""
+    CLOUDFLARE_VECTORIZE_INDEX: str = "course_documents"
+    CLOUDFLARE_LLM_MODEL: str = "@cf/meta/llama-3.1-8b-instruct"
+    CLOUDFLARE_EMBEDDING_MODEL: str = "@cf/baai/bge-base-en-v1.5"
+
     # --- AI / LLM ---
     GEMINI_API_KEY: str = ""
     LLM_MODEL: str = "gemini-2.0-flash"
 
     # --- Embeddings ---
-    EMBEDDING_MODEL: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-    EMBEDDING_DIMENSION: int = 384
+    EMBEDDING_MODEL: str = "intfloat/multilingual-e5-base"
+    EMBEDDING_DIMENSION: int = 768
 
     # --- Ingestion ---
     CHUNK_SIZE: int = 500

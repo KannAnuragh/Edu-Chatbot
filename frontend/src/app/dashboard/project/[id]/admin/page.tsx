@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Layers,
+  Trash2,
 } from "lucide-react";
 import type { Project, Document as DocType } from "@/types";
 import { getBadgeGradient } from "../../../page";
@@ -129,6 +130,23 @@ export default function AdminCoursePage() {
       setProject((prev) => (prev ? { ...prev, badge_color: color } : null));
     } catch {
       alert("Failed to update badge color");
+    }
+  };
+
+  const handleDeleteCourse = async () => {
+    if (!project) return;
+    if (
+      !confirm(
+        `Are you sure you want to delete "${project.title}"? All uploaded documents and chat history for this course will be permanently removed.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await api.deleteCourse(project.id);
+      router.push("/dashboard");
+    } catch {
+      alert("Failed to delete course");
     }
   };
 
@@ -338,6 +356,19 @@ export default function AdminCoursePage() {
                     ))}
                   </div>
                 </div>
+
+                <hr className="border-border" />
+
+                {/* Delete Course */}
+                <div>
+                  <button
+                    onClick={handleDeleteCourse}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors shadow-sm"
+                  >
+                    <Trash2 size={14} />
+                    Delete Course
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -358,6 +389,14 @@ export default function AdminCoursePage() {
             <h2 className="font-heading font-medium text-[14px] text-ink truncate min-w-0">Settings</h2>
           </div>
           <div className="flex items-center gap-3 ml-auto">
+            <button
+              onClick={handleDeleteCourse}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors"
+              title="Delete Course"
+            >
+              <Trash2 size={14} />
+              Delete Course
+            </button>
             <button
               onClick={() => router.push(`/dashboard/project/${projectId}?chat=1`)}
               className="emerald-btn flex items-center gap-2 px-4 py-2 rounded-lg text-sm shadow-emerald-500/20 shadow-lg hover:shadow-emerald-500/40"

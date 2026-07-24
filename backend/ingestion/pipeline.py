@@ -9,8 +9,7 @@ from langdetect import detect, DetectorFactory
 
 from ingestion.extractor import extract_text_from_pdf
 from ingestion.chunker import chunk_text
-from embeddings.model import embedding_model
-from qdrant_module.client import QdrantService
+from providers.factory import embedding_model, get_vector_db_client
 
 # Ensure consistent language detection
 DetectorFactory.seed = 0
@@ -58,8 +57,8 @@ def run_ingestion_pipeline(
     embeddings = embedding_model.encode(texts_to_embed)
     
     # 5. Store in Qdrant
-    qdrant = QdrantService()
-    qdrant.upsert_chunks(
+    vector_db = get_vector_db_client()
+    vector_db.upsert_chunks(
         user_id=user_id,
         course_id=course_id,
         document_id=document_id,

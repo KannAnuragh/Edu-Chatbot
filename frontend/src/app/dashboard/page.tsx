@@ -12,6 +12,7 @@ import {
   ArrowRight,
   LogOut,
   Activity,
+  Trash2,
 } from "lucide-react";
 import type { Project } from "@/types";
 
@@ -83,6 +84,24 @@ export default function DashboardPage() {
   const handleLogout = () => {
     logout();
     router.push("/login");
+  };
+
+  const handleDeleteCourse = async (e: React.MouseEvent, courseId: string) => {
+    e.stopPropagation();
+    if (
+      !confirm(
+        "Are you sure you want to delete this course? All uploaded PDFs and chat data will be deleted."
+      )
+    ) {
+      return;
+    }
+    try {
+      await api.deleteCourse(courseId);
+      setCourses((prev) => prev.filter((c) => c.id !== courseId));
+    } catch (error) {
+      console.error("Failed to delete course", error);
+      alert("Failed to delete course");
+    }
   };
 
   return (
@@ -225,11 +244,22 @@ export default function DashboardPage() {
                           {course.title.charAt(0).toUpperCase()}
                         </span>
                       </div>
-                      <div className="w-8 h-8 rounded-full bg-canvas flex items-center justify-center group-hover:bg-emerald-tint transition-colors">
-                        <ArrowRight
-                          size={16}
-                          className="text-muted group-hover:text-emerald group-hover:translate-x-0.5 transition-all"
-                        />
+                      <div className="flex items-center gap-2">
+                        {isAdmin && (
+                          <div
+                            onClick={(e) => handleDeleteCourse(e, course.id)}
+                            className="w-8 h-8 rounded-full bg-canvas flex items-center justify-center hover:bg-red-50 text-muted hover:text-red-600 transition-colors z-10"
+                            title="Delete Course"
+                          >
+                            <Trash2 size={15} />
+                          </div>
+                        )}
+                        <div className="w-8 h-8 rounded-full bg-canvas flex items-center justify-center group-hover:bg-emerald-tint transition-colors">
+                          <ArrowRight
+                            size={16}
+                            className="text-muted group-hover:text-emerald group-hover:translate-x-0.5 transition-all"
+                          />
+                        </div>
                       </div>
                     </div>
                     

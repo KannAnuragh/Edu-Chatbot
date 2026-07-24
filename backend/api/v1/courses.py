@@ -14,6 +14,7 @@ from models.user import User, UserRole
 from models.course import Course
 from models.enrollment import Enrollment
 from models.document import Document
+from providers.factory import get_vector_db_client
 from schemas.course import (
     CourseCreateRequest,
     CourseUpdateRequest,
@@ -177,8 +178,17 @@ async def delete_course(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found or unauthorized")
 
-    # In a full implementation, we should also delete vectors from Qdrant
-    # and files from the filesystem before deleting the database records.
+    # Delete vectors for all documents in this course from Vector DB (e.g. Cloudflare)
+    documents_result = await db.execute(select(Document).where(Document.course_id == course_id))
+    documents = documents_result.scalars().all()
+    
+    vector_db = get_vector_db_client()
+    for doc in documents:
+        try:
+            await vector_db.delete_document_vectors(user_id=str(admin_user.id), document_id=str(doc.id))
+        except Exception as e:
+            print(f"Failed to delete vectors for document {doc.id}: {e}")
+
     # The DB cascade will handle deleting Document, Enrollment, and Conversation rows.
     await db.delete(course)
     await db.commit()
