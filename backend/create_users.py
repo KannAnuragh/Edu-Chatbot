@@ -69,6 +69,7 @@ async def main_with_retry():
                 sys.exit(1)
             print(f"Database connection attempt {attempt}/{max_retries} failed ({e}). Retrying in 2s...")
             await asyncio.sleep(2)
+    await async_engine.dispose()
 
 if __name__ == "__main__":
     if sys.platform == 'win32':
