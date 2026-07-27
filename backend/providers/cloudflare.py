@@ -35,16 +35,20 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
                 response.raise_for_status()
                 data = response.json()
                 
-                shape = data.get("result", {}).get("shape", [])
-                flat_data = data.get("result", {}).get("data", [])
-                
-                if len(shape) >= 2:
-                    dim = shape[1]
+                data_result = data.get("result", {}).get("data", [])
+                if len(data_result) > 0 and isinstance(data_result[0], list):
+                    # Data is already 2D (list of list of floats)
+                    all_embeddings.extend(data_result)
                 else:
-                    dim = len(flat_data) // len(batch) if len(batch) > 0 else 768
-                
-                reshaped_data = [flat_data[j:j+dim] for j in range(0, len(flat_data), dim)]
-                all_embeddings.extend(reshaped_data)
+                    # Data is flat, reshape it
+                    shape = data.get("result", {}).get("shape", [])
+                    if len(shape) >= 2:
+                        dim = shape[1]
+                    else:
+                        dim = len(data_result) // len(batch) if len(batch) > 0 else 768
+                    
+                    reshaped_data = [data_result[j:j+dim] for j in range(0, len(data_result), dim)]
+                    all_embeddings.extend(reshaped_data)
         return all_embeddings
 
     def encode_query(self, query: str) -> List[float]:
@@ -57,7 +61,10 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
             )
             response.raise_for_status()
             data = response.json()
-            return data.get("result", {}).get("data", [])
+            data_result = data.get("result", {}).get("data", [])
+            if len(data_result) > 0 and isinstance(data_result[0], list):
+                return data_result[0]
+            return data_result
 
 
 class CloudflareVectorDBProvider(BaseVectorDBProvider):
@@ -114,7 +121,9 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
                     timeout=30.0
                 )
                 if not response.is_success:
-                    print(f"Cloudflare Vectorize Insert Error: {response.text}")
+                    error_msg = f"Cloudflare Vectorize Insert Error: {response.status_code} - {response.text}"
+                    print(error_msg)
+                    raise ValueError(error_msg)
 
     async def search(
         self, 
