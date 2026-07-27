@@ -33,7 +33,12 @@ for origin in frontend_origins:
         origins.append(origin.rstrip("/"))
 
 # Add common local development origins
-for local_origin in ["http://localhost:3000", "http://localhost:3001"]:
+for local_origin in [
+    "http://localhost:3000", 
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001"
+]:
     if local_origin not in origins:
         origins.append(local_origin)
 
