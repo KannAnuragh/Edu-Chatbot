@@ -4,6 +4,7 @@ API v1 — Documents Routes.
 
 import os
 from uuid import UUID
+from typing import List
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,6 +92,79 @@ async def upload_document(
         if file_path.exists():
             os.remove(file_path)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/bulk_upload", response_model=List[DocumentResponse], status_code=status.HTTP_201_CREATED)
+async def bulk_upload_documents(
+    course_id: UUID,
+    files: List[UploadFile] = File(...),
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(get_current_admin),
+):
+    """Upload multiple PDF documents to a course (Admin only)."""
+    # Verify course ownership
+    result = await db.execute(
+        select(Course).where(Course.id == course_id, Course.created_by == admin_user.id)
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Course not found or unauthorized")
+
+    uploaded_documents = []
+    
+    for file in files:
+        # Validate file type
+        if not file.filename.lower().endswith(".pdf"):
+            raise HTTPException(status_code=400, detail=f"Only PDF files are allowed. '{file.filename}' is invalid.")
+
+        # Create document record
+        document = Document(
+            filename=file.filename,
+            file_path="",  # Will update after saving
+            file_size=0,
+            status=DocumentStatus.PENDING,
+            course_id=course_id,
+            user_id=admin_user.id,
+        )
+        db.add(document)
+        await db.flush()
+
+        # Save file to disk
+        course_dir = Path(settings.UPLOAD_DIR) / str(course_id)
+        course_dir.mkdir(parents=True, exist_ok=True)
+        
+        file_path = course_dir / f"{document.id}_{file.filename}"
+        
+        try:
+            content = await file.read()
+            file_size = len(content)
+            
+            if file_size > settings.MAX_FILE_SIZE_MB * 1024 * 1024:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"File '{file.filename}' exceeds maximum size of {settings.MAX_FILE_SIZE_MB}MB"
+                )
+                
+            with open(file_path, "wb") as f:
+                f.write(content)
+                
+            # Update record
+            document.file_path = file_path.as_posix()
+            document.file_size = file_size
+            await db.commit()
+            
+            # Trigger Celery task
+            from workers.tasks import process_document
+            process_document.delay(str(document.id))
+            
+            uploaded_documents.append(document)
+            
+        except Exception as e:
+            await db.rollback()
+            if file_path.exists():
+                os.remove(file_path)
+            raise HTTPException(status_code=500, detail=f"Failed to process '{file.filename}': {str(e)}")
+
+    return uploaded_documents
 
 
 @router.get("", response_model=DocumentListResponse)

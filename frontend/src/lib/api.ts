@@ -148,6 +148,27 @@ export class ApiClient {
     return response.json();
   }
 
+  async uploadDocumentsBulk(courseId: string, files: File[]) {
+    const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
+
+    const token = localStorage.getItem("aca_token");
+    const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+    const response = await fetch(`${getApiUrl()}/courses/${courseId}/documents/bulk_upload`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || "Bulk upload failed");
+    }
+
+    return response.json();
+  }
+
   async deleteDocument(courseId: string, documentId: string) {
     const url = `${getApiUrl()}/courses/${courseId}/documents/${documentId}`;
     const token = localStorage.getItem("aca_token");

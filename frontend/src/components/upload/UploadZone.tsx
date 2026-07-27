@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 interface UploadZoneProps {
   projectId: string;
-  onUploadComplete?: (doc: Document) => void;
+  onUploadComplete?: (docs: Document[]) => void;
 }
 
 export default function UploadZone({ projectId, onUploadComplete }: UploadZoneProps) {
@@ -34,13 +34,13 @@ export default function UploadZone({ projectId, onUploadComplete }: UploadZonePr
     
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-      await handleFileUpload(files[0]);
+      await handleFileUpload(files);
     }
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      await handleFileUpload(e.target.files[0]);
+      await handleFileUpload(Array.from(e.target.files));
     }
     // Reset input
     if (fileInputRef.current) {
@@ -48,18 +48,20 @@ export default function UploadZone({ projectId, onUploadComplete }: UploadZonePr
     }
   };
 
-  const handleFileUpload = async (file: File) => {
-    // Validate file
+  const handleFileUpload = async (files: File[]) => {
+    // Validate files
     setError(null);
     setSuccess(false);
     
-    if (file.type !== "application/pdf") {
+    const invalidFiles = files.filter(f => f.type !== "application/pdf");
+    if (invalidFiles.length > 0) {
       setError("Only PDF files are allowed.");
       return;
     }
     
-    if (file.size > 50 * 1024 * 1024) { // 50MB
-      setError("File exceeds maximum size of 50MB.");
+    const oversizedFiles = files.filter(f => f.size > 50 * 1024 * 1024);
+    if (oversizedFiles.length > 0) { // 50MB
+      setError("One or more files exceed maximum size of 50MB.");
       return;
     }
 
@@ -75,7 +77,7 @@ export default function UploadZone({ projectId, onUploadComplete }: UploadZonePr
     }, 200);
 
     try {
-      const doc = await api.uploadDocument(projectId, file);
+      const docs = await api.uploadDocumentsBulk(projectId, files);
       clearInterval(progressInterval);
       setProgress(100);
       setSuccess(true);
@@ -84,14 +86,14 @@ export default function UploadZone({ projectId, onUploadComplete }: UploadZonePr
         setSuccess(false);
         setProgress(0);
         if (onUploadComplete) {
-          onUploadComplete(doc);
+          onUploadComplete(docs);
         }
       }, 1000);
       
     } catch (err: any) {
       clearInterval(progressInterval);
       setProgress(0);
-      setError(err.message || "Failed to upload document");
+      setError(err.message || "Failed to upload document(s)");
     } finally {
       setUploading(false);
     }
@@ -105,6 +107,7 @@ export default function UploadZone({ projectId, onUploadComplete }: UploadZonePr
         onChange={handleFileSelect}
         accept="application/pdf"
         className="hidden"
+        multiple
       />
 
       <div

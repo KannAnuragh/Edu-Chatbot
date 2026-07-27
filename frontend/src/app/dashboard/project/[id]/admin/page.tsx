@@ -150,10 +150,10 @@ export default function AdminCoursePage() {
     }
   };
 
-  const handleUploadComplete = useCallback((doc: DocType) => {
-    setDocuments((prev) => [doc, ...prev]);
+  const handleUploadComplete = useCallback((docs: DocType[]) => {
+    setDocuments((prev) => [...docs, ...prev]);
     setStats((prev) =>
-      prev ? { ...prev, document_count: prev.document_count + 1 } : prev
+      prev ? { ...prev, document_count: prev.document_count + docs.length } : prev
     );
   }, []);
 
