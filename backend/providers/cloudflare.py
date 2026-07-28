@@ -221,7 +221,7 @@ class CloudflareLLMProvider(BaseLLMProvider):
                             try:
                                 data = json.loads(data_str)
                                 if "response" in data:
-                                    yield data["response"]
+                                    yield str(data["response"])
                             except json.JSONDecodeError:
                                 pass
             except Exception as e:
