@@ -69,8 +69,13 @@ const PDFViewer = forwardRef<PDFViewerHandle, PDFViewerProps>(
       } else {
         baseUrl = "http://localhost:8001";
       }
-      const cleanPath = doc.file_path.replace(/\\/g, "/").replace(/^\.?\//, "");
-      return `${baseUrl}/${cleanPath}`;
+      
+      const normalizedPath = doc.file_path.replace(/\\/g, "/");
+      const uploadsIndex = normalizedPath.toLowerCase().indexOf("uploads/");
+      const relativePath = uploadsIndex !== -1 
+        ? normalizedPath.substring(uploadsIndex) 
+        : normalizedPath.replace(/^\.?\//, "");
+      return `${baseUrl}/${relativePath}`;
     };
 
     if (readyDocuments.length === 0) {
