@@ -1,5 +1,6 @@
 import json
 import uuid
+import time
 import httpx
 from typing import List, Dict, Any, AsyncGenerator
 
@@ -26,13 +27,32 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
         with httpx.Client() as client:
             for i in range(0, len(texts), batch_size):
                 batch = texts[i:i+batch_size]
-                response = client.post(
-                    self._get_url(),
-                    headers=_get_cf_headers(),
-                    json={"text": batch},
-                    timeout=30.0
-                )
-                response.raise_for_status()
+                
+                # Retry logic for 429 / other transient errors
+                response = None
+                max_retries = 5
+                for attempt in range(max_retries):
+                    try:
+                        response = client.post(
+                            self._get_url(),
+                            headers=_get_cf_headers(),
+                            json={"text": batch},
+                            timeout=45.0
+                        )
+                        if response.status_code == 429:
+                            wait_time = 2 ** attempt
+                            print(f"⚠️ Cloudflare rate limit hit (429). Retrying in {wait_time}s...")
+                            time.sleep(wait_time)
+                            continue
+                        response.raise_for_status()
+                        break
+                    except (httpx.HTTPError, Exception) as e:
+                        if attempt == max_retries - 1:
+                            raise e
+                        wait_time = 2 ** attempt
+                        print(f"⚠️ Cloudflare API call failed ({e}). Retrying in {wait_time}s...")
+                        time.sleep(wait_time)
+
                 data = response.json()
                 
                 data_result = data.get("result", {}).get("data", [])
@@ -54,13 +74,29 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
 
     def encode_query(self, query: str) -> List[float]:
         with httpx.Client() as client:
-            response = client.post(
-                self._get_url(),
-                headers=_get_cf_headers(),
-                json={"text": [query]},
-                timeout=10.0
-            )
-            response.raise_for_status()
+            max_retries = 5
+            for attempt in range(max_retries):
+                try:
+                    response = client.post(
+                        self._get_url(),
+                        headers=_get_cf_headers(),
+                        json={"text": [query]},
+                        timeout=15.0
+                    )
+                    if response.status_code == 429:
+                        wait_time = 2 ** attempt
+                        print(f"⚠️ Cloudflare rate limit hit (429) for query. Retrying in {wait_time}s...")
+                        time.sleep(wait_time)
+                        continue
+                    response.raise_for_status()
+                    break
+                except (httpx.HTTPError, Exception) as e:
+                    if attempt == max_retries - 1:
+                        raise e
+                    wait_time = 2 ** attempt
+                    print(f"⚠️ Cloudflare query embedding failed ({e}). Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+            
             data = response.json()
             data_result = data.get("result", {}).get("data", [])
             if len(data_result) > 0 and isinstance(data_result[0], list):
@@ -118,16 +154,31 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
                 headers = _get_cf_headers()
                 headers["Content-Type"] = "application/x-ndjson"
                 
-                response = client.post(
-                    url,
-                    headers=headers,
-                    content=ndjson_content.encode("utf-8"),
-                    timeout=45.0
-                )
-                if not response.is_success:
-                    error_msg = f"Cloudflare Vectorize Insert Error for {filename}: {response.status_code} - {response.text}"
-                    print(error_msg)
-                    raise ValueError(error_msg)
+                max_retries = 5
+                for attempt in range(max_retries):
+                    try:
+                        response = client.post(
+                            url,
+                            headers=headers,
+                            content=ndjson_content.encode("utf-8"),
+                            timeout=45.0
+                        )
+                        if response.status_code == 429:
+                            wait_time = 2 ** attempt
+                            print(f"⚠️ Cloudflare Vectorize upsert rate limit hit (429). Retrying in {wait_time}s...")
+                            time.sleep(wait_time)
+                            continue
+                        if not response.is_success:
+                            error_msg = f"Cloudflare Vectorize Insert Error for {filename}: {response.status_code} - {response.text}"
+                            print(error_msg)
+                            raise ValueError(error_msg)
+                        break
+                    except (httpx.HTTPError, Exception) as e:
+                        if attempt == max_retries - 1:
+                            raise e
+                        wait_time = 2 ** attempt
+                        print(f"⚠️ Cloudflare Vectorize upsert failed ({e}). Retrying in {wait_time}s...")
+                        time.sleep(wait_time)
 
     async def search(
         self, 
