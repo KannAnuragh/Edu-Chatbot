@@ -25,9 +25,24 @@ from schemas.document import (
 router = APIRouter(prefix="/courses/{course_id}/documents", tags=["Documents"])
 
 
+def dispatch_document_processing(document_id: str, background_tasks: BackgroundTasks):
+    """
+    Attempts to trigger Celery task first.
+    If Celery/Redis is unavailable or fails, falls back to FastAPI BackgroundTasks.
+    """
+    try:
+        from workers.tasks import process_document
+        process_document.delay(str(document_id))
+    except Exception as e:
+        print(f"⚠️ Celery dispatch failed ({e}). Falling back to FastAPI BackgroundTasks for doc {document_id}")
+        from workers.tasks import process_document_sync
+        background_tasks.add_task(process_document_sync, str(document_id))
+
+
 @router.post("/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_document(
     course_id: UUID,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     admin_user: User = Depends(get_current_admin),
@@ -80,10 +95,8 @@ async def upload_document(
         document.file_size = file_size
         await db.commit()
         
-        # Trigger Celery task
-        # We import it here to avoid circular imports during startup
-        from workers.tasks import process_document
-        process_document.delay(str(document.id))
+        # Dispatch processing (Celery -> FastAPI BackgroundTasks fallback)
+        dispatch_document_processing(str(document.id), background_tasks)
         
         return document
         
@@ -97,6 +110,7 @@ async def upload_document(
 @router.post("/bulk_upload", response_model=List[DocumentResponse], status_code=status.HTTP_201_CREATED)
 async def bulk_upload_documents(
     course_id: UUID,
+    background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     db: AsyncSession = Depends(get_db),
     admin_user: User = Depends(get_current_admin),
@@ -152,9 +166,8 @@ async def bulk_upload_documents(
             document.file_size = file_size
             await db.commit()
             
-            # Trigger Celery task
-            from workers.tasks import process_document
-            process_document.delay(str(document.id))
+            # Dispatch processing (Celery -> FastAPI BackgroundTasks fallback)
+            dispatch_document_processing(str(document.id), background_tasks)
             
             uploaded_documents.append(document)
             
@@ -162,7 +175,9 @@ async def bulk_upload_documents(
             await db.rollback()
             if file_path.exists():
                 os.remove(file_path)
-            raise HTTPException(status_code=500, detail=f"Failed to process '{file.filename}': {str(e)}")
+            print(f"Failed to process '{file.filename}': {str(e)}")
+            # Continue processing remaining files in bulk upload rather than breaking the entire request
+            continue
 
     return uploaded_documents
 

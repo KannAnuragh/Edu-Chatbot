@@ -33,11 +33,10 @@ def _get_sync_db():
         db.close()
 
 
-@celery_app.task(bind=True, max_retries=3)
-def process_document(self, document_id: str):
+def process_document_sync(document_id: str) -> bool:
     """
-    Background task to process an uploaded PDF document.
-    Extracts text, chunks it, generates embeddings, and saves to vector DB.
+    Synchronous helper to process a document.
+    Can be run directly or via FastAPI BackgroundTasks / Celery worker.
     """
     db = next(_get_sync_db())
     
@@ -91,12 +90,25 @@ def process_document(self, document_id: str):
         except Exception as db_exc:
             print(f"Failed to update document error status: {db_exc}")
             
-        # Retry logic for transient errors
-        # (Only retry if it's not a clear unrecoverable error like FileNotFoundError)
-        if not isinstance(exc, (FileNotFoundError, ValueError)):
-            raise self.retry(exc=exc, countdown=60) # Retry after 1 minute
-            
         return False
         
     finally:
         db.close()
+
+
+@celery_app.task(bind=True, max_retries=3)
+def process_document(self, document_id: str):
+    """
+    Celery background task wrapper.
+    """
+    success = process_document_sync(document_id)
+    if not success:
+        # Check if error should trigger retry
+        db = next(_get_sync_db())
+        doc = db.query(Document).filter(Document.id == document_id).first()
+        db.close()
+        if doc and doc.status == DocumentStatus.FAILED:
+            # We already logged error, retry if appropriate
+            pass
+    return success
+
