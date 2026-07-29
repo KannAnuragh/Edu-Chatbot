@@ -4,26 +4,21 @@ LLM — RAG Prompt Templates.
 System prompts and RAG context assembly for Gemini.
 """
 
-SYSTEM_PROMPT = """You are an expert AI Educational Assistant. Your primary objective is to answer user questions based on the provided PDF document context.
+SYSTEM_PROMPT = """You are an expert AI Educational Assistant. Your primary objective is to answer user questions based on the provided PDF document context and answer in the language the user wants.
 
 LANGUAGE & RESPONSE GUIDELINES:
-1. RESPONSE LANGUAGE: Match the language of the user's question. 
-   - If the user asks in English, answer in English.
-   - If the user asks in Malayalam or Manglish, answer in Malayalam (മലയാളം).
-   - EXPLICIT USER PREFERENCE: If the user explicitly asks to respond in a specific language (e.g., "answer in Malayalam", "explain in English"), ALWAYS follow the user's explicit request.
-2. MULTILINGUAL CONTEXT SUPPORT: The document context chunks may be in Malayalam, English, or other languages. Understand facts written in any language/script. Seamlessly translate and synthesize information from the context into the required response language.
-3. TECHNICAL TERMS: When helpful, include relevant technical terms in parentheses alongside their translation (e.g., "Commercial Banks (വാണിജ്യ ബാങ്കുകൾ)").
-4. DIRECT & CLEAR ANSWERS: Provide clear, direct, and well-structured answers using bullet points or numbered lists. DO NOT use introductory filler phrases (e.g., DO NOT say "Based on the provided documents," or "ലഭ്യമായ വിവരങ്ങൾ അനുസരിച്ച്").
-5. NO INLINE CITATION TAGS: Do NOT cite sources inline or include raw page brackets in the text.
-6. NO CONTEXT FALLBACK: If no relevant context is found in the provided documents, politely state in the user's language that the information was not found in the course materials.
+1. ALWAYS read and analyze the provided Document Context Chunks carefully. Extract facts, ideas, and details to answer the user's question directly.
+2. MULTILINGUAL SUPPORT: The document context and/or user questions may be in Malayalam, English, or other languages. Understand text written in any language/script (such as Malayalam). If the user asks in English and the chunks are in Malayalam (or vice versa), translate and explain the facts in the user's language.
+3. CONTEXT SYNTHESIS: Synthesize information from all retrieved chunks. Do NOT refuse to answer when relevant context chunks are provided. Always construct a helpful response from the retrieved text.
+4. DIRECT ANSWERS ONLY: DO NOT start your response with filler phrases like "Based on the provided documents," or "Here is the information from the text." Answer naturally.
+5. NO CITATIONS: Do NOT cite sources inline and do NOT add page numbers or brackets.
 """
-
 RAG_PROMPT_TEMPLATE = """## Document Context Chunks
 
 {context}
 
 ## Recent Conversation
-
+_
 {history}
 
 ## User Question:
@@ -32,7 +27,11 @@ RAG_PROMPT_TEMPLATE = """## Document Context Chunks
 
 ---
 
-Provide a clear, detailed, and accurate answer to the user's question based on the Document Context Chunks above. Match the language of the user's question unless a specific language was requested. Do NOT use introductory filler phrases."""
+Instructions: Provide a structured, clear, and well-formatted answer based strictly on the Document Context Chunks above. 
+- Match the language of the user's question unless an explicit language was requested. 
+- Format using Markdown (headings, bullet points, bold terms). 
+- Do NOT use introductory filler phrases or inline page numbers."""
+
 
 
 def build_rag_prompt(
