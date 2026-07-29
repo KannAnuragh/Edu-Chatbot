@@ -21,7 +21,7 @@ class RetrievalService:
         user_id: str, 
         course_id: str, 
         query: str, 
-        top_k: int = 5
+        top_k: int = 7
     ) -> List[Dict[str, Any]]:
         """
         Embed the query and search Qdrant for relevant chunks.

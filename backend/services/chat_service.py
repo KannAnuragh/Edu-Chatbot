@@ -77,7 +77,7 @@ class ChatService:
                     user_id=str(user_id),
                     course_id=str(course_id),
                     query=message_text,
-                    top_k=5
+                    top_k=7
                 )
                 
                 # STRICT FALLBACK VERIFICATION: Filter out any chunks that don't match the course_id

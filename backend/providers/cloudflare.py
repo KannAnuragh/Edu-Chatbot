@@ -89,13 +89,16 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
         url = f"{self._get_base_url()}/upsert"
         
         vectors = []
+        clean_course_id = str(course_id).lower().strip()
+        clean_doc_id = str(document_id).lower().strip()
+        
         for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
             vectors.append({
-                "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{document_id}_chunk_{i}")).replace("-", ""),
+                "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{clean_doc_id}_chunk_{i}")).replace("-", ""),
                 "values": embedding,
                 "metadata": {
-                    "course_id": str(course_id),
-                    "document_id": str(document_id),
+                    "course_id": clean_course_id,
+                    "document_id": clean_doc_id,
                     "filename": str(filename),
                     "page_number": int(chunk["page_number"]),
                     "text": str(chunk["text"]),
@@ -104,7 +107,7 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
             })
 
         with httpx.Client() as client:
-            batch_size = 100
+            batch_size = 50  # Smaller batch size to prevent HTTP payload timeouts on Cloudflare
             for i in range(0, len(vectors), batch_size):
                 batch = vectors[i:i+batch_size]
                 
@@ -118,10 +121,10 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
                     url,
                     headers=headers,
                     content=ndjson_content.encode("utf-8"),
-                    timeout=30.0
+                    timeout=45.0
                 )
                 if not response.is_success:
-                    error_msg = f"Cloudflare Vectorize Insert Error: {response.status_code} - {response.text}"
+                    error_msg = f"Cloudflare Vectorize Insert Error for {filename}: {response.status_code} - {response.text}"
                     print(error_msg)
                     raise ValueError(error_msg)
 
@@ -130,7 +133,7 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
         user_id: str, 
         course_id: str, 
         query_vector: List[float], 
-        limit: int = 5
+        limit: int = 7
     ) -> List[Dict[str, Any]]:
         url = f"{self._get_base_url()}/query"
         payload = {
@@ -138,7 +141,7 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
             "topK": limit,
             "returnValues": False,
             "returnMetadata": "all",
-            "filter": {"course_id": course_id}
+            "filter": {"course_id": str(course_id).lower().strip()}
         }
         
         async with httpx.AsyncClient() as client:
