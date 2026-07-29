@@ -69,8 +69,8 @@ class Settings(BaseSettings):
     EMBEDDING_DIMENSION: int = 768
 
     # --- Ingestion ---
-    CHUNK_SIZE: int = 500
-    CHUNK_OVERLAP: int = 100
+    CHUNK_SIZE: int = 1500
+    CHUNK_OVERLAP: int = 200
 
     # --- Storage ---
     UPLOAD_DIR: str = "./uploads"

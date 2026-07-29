@@ -22,7 +22,7 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
     def _get_url(self):
         return f"https://api.cloudflare.com/client/v4/accounts/{settings.CLOUDFLARE_ACCOUNT_ID}/ai/run/{settings.CLOUDFLARE_EMBEDDING_MODEL}"
 
-    def encode(self, texts: List[str], batch_size: int = 100) -> List[List[float]]:
+    def encode(self, texts: List[str], batch_size: int = 20) -> List[List[float]]:
         all_embeddings = []
         with httpx.Client() as client:
             for i in range(0, len(texts), batch_size):
@@ -40,8 +40,11 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
                             timeout=45.0
                         )
                         if response.status_code == 429:
+                            if attempt == max_retries - 1:
+                                print(f"⚠️ Cloudflare rate limit hit (429). Max retries exceeded. Raising error.", flush=True)
+                                response.raise_for_status()
                             wait_time = 2 ** attempt
-                            print(f"⚠️ Cloudflare rate limit hit (429). Retrying in {wait_time}s...")
+                            print(f"⚠️ Cloudflare rate limit hit (429). Retrying in {wait_time}s...", flush=True)
                             time.sleep(wait_time)
                             continue
                         response.raise_for_status()
@@ -50,7 +53,7 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
                         if attempt == max_retries - 1:
                             raise e
                         wait_time = 2 ** attempt
-                        print(f"⚠️ Cloudflare API call failed ({e}). Retrying in {wait_time}s...")
+                        print(f"⚠️ Cloudflare API call failed ({e}). Retrying in {wait_time}s...", flush=True)
                         time.sleep(wait_time)
 
                 data = response.json()
@@ -147,7 +150,7 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
             })
 
         with httpx.Client() as client:
-            batch_size = 100  # Increased batch size for faster insertions
+            batch_size = 50  # Balanced batch size for faster insertions but avoiding limits
             for i in range(0, len(vectors), batch_size):
                 batch = vectors[i:i+batch_size]
                 
@@ -167,20 +170,23 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
                             timeout=45.0
                         )
                         if response.status_code == 429:
+                            if attempt == max_retries - 1:
+                                print(f"⚠️ Cloudflare Vectorize upsert rate limit hit (429). Max retries exceeded.", flush=True)
+                                response.raise_for_status()
                             wait_time = 2 ** attempt
-                            print(f"⚠️ Cloudflare Vectorize upsert rate limit hit (429). Retrying in {wait_time}s...")
+                            print(f"⚠️ Cloudflare Vectorize upsert rate limit hit (429). Retrying in {wait_time}s...", flush=True)
                             time.sleep(wait_time)
                             continue
                         if not response.is_success:
                             error_msg = f"Cloudflare Vectorize Insert Error for {filename}: {response.status_code} - {response.text}"
-                            print(error_msg)
+                            print(error_msg, flush=True)
                             raise ValueError(error_msg)
                         break
                     except (httpx.HTTPError, Exception) as e:
                         if attempt == max_retries - 1:
                             raise e
                         wait_time = 2 ** attempt
-                        print(f"⚠️ Cloudflare Vectorize upsert failed ({e}). Retrying in {wait_time}s...")
+                        print(f"⚠️ Cloudflare Vectorize upsert failed ({e}). Retrying in {wait_time}s...", flush=True)
                         time.sleep(wait_time)
 
     async def search(
