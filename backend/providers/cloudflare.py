@@ -22,7 +22,7 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
     def _get_url(self):
         return f"https://api.cloudflare.com/client/v4/accounts/{settings.CLOUDFLARE_ACCOUNT_ID}/ai/run/{settings.CLOUDFLARE_EMBEDDING_MODEL}"
 
-    def encode(self, texts: List[str], batch_size: int = 32) -> List[List[float]]:
+    def encode(self, texts: List[str], batch_size: int = 100) -> List[List[float]]:
         all_embeddings = []
         with httpx.Client() as client:
             for i in range(0, len(texts), batch_size):
@@ -147,7 +147,7 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
             })
 
         with httpx.Client() as client:
-            batch_size = 50  # Smaller batch size to prevent HTTP payload timeouts on Cloudflare
+            batch_size = 100  # Increased batch size for faster insertions
             for i in range(0, len(vectors), batch_size):
                 batch = vectors[i:i+batch_size]
                 

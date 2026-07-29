@@ -37,9 +37,8 @@ def extract_text_from_pdf(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
             if not settings.FORCE_OCR:
                 text = page.get_text("text").strip()
                 
-            # 2. Fallback to OCR if page is empty or FORCE_OCR is True
-            # We assume it's a scanned PDF if we get less than 50 chars of text
-            if len(text) < 50 or settings.FORCE_OCR:
+            # 2. Only run OCR if explicitly forced in settings
+            if settings.FORCE_OCR:
                 try:
                     # Render page as image (zoom=2 for better OCR quality)
                     zoom = 2.0
