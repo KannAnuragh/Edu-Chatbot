@@ -69,7 +69,8 @@ def _recursive_split(text: str, chunk_size: int, overlap: int) -> List[str]:
         return _apply_overlap(sentences, chunk_size, overlap, separator=' ')
         
     # Fallback to character splitting
-    return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size - overlap)]
+    step = max(1, chunk_size - overlap)
+    return [text[i:i + chunk_size] for i in range(0, len(text), step)]
 
 
 def _apply_overlap(pieces: List[str], max_size: int, overlap: int, separator: str) -> List[str]:

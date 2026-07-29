@@ -27,16 +27,13 @@ router = APIRouter(prefix="/courses/{course_id}/documents", tags=["Documents"])
 
 def dispatch_document_processing(document_id: str, background_tasks: BackgroundTasks):
     """
-    Attempts to trigger Celery task first.
-    If Celery/Redis is unavailable or fails, falls back to FastAPI BackgroundTasks.
+    Uses FastAPI BackgroundTasks instead of Celery.
+    In cloud deployments without a shared disk (like AWS EFS or S3), 
+    Celery workers cannot access files uploaded to the web container's local disk.
     """
-    try:
-        from workers.tasks import process_document
-        process_document.delay(str(document_id))
-    except Exception as e:
-        print(f"⚠️ Celery dispatch failed ({e}). Falling back to FastAPI BackgroundTasks for doc {document_id}")
-        from workers.tasks import process_document_sync
-        background_tasks.add_task(process_document_sync, str(document_id))
+    print(f"🚀 Dispatching document {document_id} to FastAPI BackgroundTasks")
+    from workers.tasks import process_document_sync
+    background_tasks.add_task(process_document_sync, str(document_id))
 
 
 @router.post("/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
@@ -288,6 +285,7 @@ async def delete_document(
 async def reprocess_document(
     course_id: UUID,
     document_id: UUID,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     admin_user: User = Depends(get_current_admin),
 ):
@@ -308,8 +306,7 @@ async def reprocess_document(
     document.error_message = None
     await db.commit()
     
-    # Trigger Celery task
-    from workers.tasks import process_document
-    process_document.delay(str(document.id))
+    # Trigger Background Task
+    dispatch_document_processing(str(document.id), background_tasks)
     
     return {"detail": "Reprocessing started"}
