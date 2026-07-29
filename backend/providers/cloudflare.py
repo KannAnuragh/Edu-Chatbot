@@ -45,7 +45,8 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
                     if len(shape) >= 2:
                         dim = shape[1]
                     else:
-                        dim = len(data_result) // len(batch) if len(batch) > 0 else 768
+                        default_dim = 1024 if "bge-m3" in settings.CLOUDFLARE_EMBEDDING_MODEL.lower() else 768
+                        dim = len(data_result) // len(batch) if len(batch) > 0 else default_dim
                     
                     reshaped_data = [data_result[j:j+dim] for j in range(0, len(data_result), dim)]
                     all_embeddings.extend(reshaped_data)
