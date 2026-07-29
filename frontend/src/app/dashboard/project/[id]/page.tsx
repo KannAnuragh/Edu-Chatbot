@@ -35,32 +35,16 @@ export default function ProjectPage() {
   const [activeDocId, setActiveDocId] = useState<string | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [rightPaneTab, setRightPaneTab] = useState<"pdf" | "notes">("pdf");
-  const [notesContent, setNotesContent] = useState<string>("");
-  const [notesSources, setNotesSources] = useState<SourceReference[]>([]);
   const [highlightInfo, setHighlightInfo] = useState<{ pageNumber: number; text: string } | null>(null);
   const pdfViewerRef = useRef<PDFViewerHandle>(null);
 
   // Mobile state
-  const [mobileTab, setMobileTab] = useState<"chat" | "pdf" | "notes">("chat");
+  const [mobileTab, setMobileTab] = useState<"chat" | "pdf">("chat");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     setHighlightInfo(null);
   }, [activeDocId]);
-
-  useEffect(() => {
-    if (!authLoading && user && user.role !== "admin") {
-      setRightPaneTab("notes");
-    }
-  }, [user, authLoading]);
-
-  const handleViewNote = useCallback((content: string, sources?: SourceReference[]) => {
-    setNotesContent(content);
-    setNotesSources(sources || []);
-    setRightPaneTab("notes");
-    setMobileTab("notes");
-  }, []);
 
   useEffect(() => {
     const handleGlobalDragOver = (e: DragEvent) => {
@@ -158,12 +142,10 @@ export default function ProjectPage() {
 
   const handleSourceClick = useCallback(
     (source: SourceReference) => {
-      if (!isAdmin) return;
       const doc = documents.find((d) => d.id === source.document_id || d.filename === source.filename);
       if (doc) {
         setActiveDocId(doc.id);
         setHighlightInfo({ pageNumber: source.page_number, text: source.chunk_text });
-        setRightPaneTab("pdf");
         setMobileTab("pdf");
       }
     },
@@ -187,87 +169,6 @@ export default function ProjectPage() {
   }
 
   if (!isAuthenticated) return null;
-
-  // --- Notes content renderer (shared between desktop and mobile) ---
-  const notesRenderer = (
-    <div className="absolute inset-0 overflow-y-auto custom-scrollbar p-4 md:p-6 lg:p-10 bg-preview flex flex-col">
-      {/* Mobile-only back button */}
-      <div className="md:hidden flex items-center mb-4 flex-shrink-0">
-        <button onClick={() => setMobileTab("chat")} className="flex items-center gap-1 text-emerald font-medium text-[13px] hover:opacity-80 transition-opacity">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7"/></svg>
-          Back to Chat
-        </button>
-      </div>
-      <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-sm border border-border p-5 sm:p-8 md:p-12 mb-10 w-full flex-1">
-        {notesContent ? (
-          <article className="prose prose-emerald prose-sm sm:prose-base max-w-none prose-headings:font-heading prose-a:text-emerald">
-            <ReactMarkdown
-              components={{
-                a: ({ href, children }: any) => {
-                  if (href && (href.startsWith("#locate:") || href.startsWith("cite:"))) {
-                    const prefix = href.startsWith("#locate:") ? "#locate:" : "cite:";
-                    const cleanHref = href.substring(prefix.length);
-                    const [filenameEncoded, query] = cleanHref.split("?");
-                    const filename = decodeURIComponent(filenameEncoded);
-                    const urlParams = new URLSearchParams(query);
-                    const pageNumber = parseInt(urlParams.get("page") || "1", 10);
-
-                    const matchedSource = notesSources.find(
-                      (s) => (s.filename === filename || s.filename === filename + ".pdf" || filename.includes(s.filename)) && s.page_number === pageNumber
-                    );
-
-                    const sourceRef: SourceReference = matchedSource || {
-                      filename,
-                      page_number: pageNumber,
-                      chunk_text: "",
-                    };
-
-                    return (
-                      <span className="inline-flex items-center gap-1 mx-1 align-middle">
-                        <span className="text-xs text-muted font-medium font-mono">
-                          {filename.replace(".pdf", "")} (p.{pageNumber})
-                        </span>
-                        {isAdmin && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleSourceClick(sourceRef);
-                            }}
-                            className="px-2 py-0.5 rounded text-[10px] font-medium bg-emerald/10 text-emerald hover:bg-emerald/20 transition-all flex items-center gap-1 cursor-pointer border border-emerald/20"
-                            title="Locate and highlight in PDF"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                            Locate
-                          </button>
-                        )}
-                      </span>
-                    );
-                  }
-                  return (
-                    <a href={href} onClick={(e) => e.preventDefault()}>
-                      {children}
-                    </a>
-                  );
-                }
-              }}
-            >
-              {preprocessNotes(notesContent)}
-            </ReactMarkdown>
-          </article>
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full text-muted mt-20">
-            <svg className="w-12 h-12 mb-4 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            <p>No notes selected.</p>
-            <p className="text-xs mt-1">Click &quot;Read Full Note&quot; on any large AI response to view it here.</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
 
   return (
     <>
@@ -307,7 +208,6 @@ export default function ProjectPage() {
                 projectId={projectId}
                 onSourceClick={handleSourceClick}
                 onAttachClick={isAdmin ? () => setShowUpload((prev) => !prev) : undefined}
-                onViewNote={handleViewNote}
               />
             </Suspense>
           </div>
@@ -315,42 +215,18 @@ export default function ProjectPage() {
 
         {/* Zone 3: Live Preview Panel */}
         <div className="flex-1 bg-preview overflow-hidden flex flex-col relative">
-          {/* Right Pane Tab Bar (Aligned h-12) */}
-          <div className="h-12 border-b border-border bg-rail flex items-center px-3 gap-1.5 z-20 flex-shrink-0">
-            {isAdmin && (
-              <button
-                onClick={() => setRightPaneTab("pdf")}
-                className={`px-3.5 h-8 flex items-center gap-1.5 rounded-lg font-medium text-[12px] transition-all border ${rightPaneTab === "pdf" ? "bg-white border-border text-ink shadow-sm" : "border-transparent text-muted hover:bg-white/50"}`}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                Show PDF
-              </button>
-            )}
-            <button
-              onClick={() => setRightPaneTab("notes")}
-              className={`px-3.5 h-8 flex items-center gap-1.5 rounded-lg font-medium text-[12px] transition-all border ${rightPaneTab === "notes" ? "bg-white border-border text-ink shadow-sm" : "border-transparent text-muted hover:bg-white/50"}`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-              Notes
-            </button>
-          </div>
-
           {/* Tab Content */}
           <div className="flex-1 overflow-hidden relative">
-            <div className={`absolute inset-0 ${rightPaneTab === "pdf" ? "block" : "hidden"}`}>
-              <PDFViewerWrapper
-                ref={pdfViewerRef}
-                documents={documents}
-                activeDocumentId={activeDocId}
-                onDocumentSelect={(id) => {
-                  setActiveDocId(id);
-                  setHighlightInfo(null);
-                }}
-                highlightInfo={highlightInfo}
-              />
-            </div>
-
-            {rightPaneTab === "notes" && notesRenderer}
+            <PDFViewerWrapper
+              ref={pdfViewerRef}
+              documents={documents}
+              activeDocumentId={activeDocId}
+              onDocumentSelect={(id) => {
+                setActiveDocId(id);
+                setHighlightInfo(null);
+              }}
+              highlightInfo={highlightInfo}
+            />
           </div>
         </div>
       </div>
@@ -385,15 +261,13 @@ export default function ProjectPage() {
             )}
           </div>
           <div className="flex items-center flex-shrink-0">
-            {isAdmin && (
-              <button
-                onClick={() => setMobileTab("pdf")}
-                className="px-2.5 py-1.5 text-[11px] font-medium text-emerald bg-emerald-tint border border-emerald-border rounded shadow-sm flex items-center gap-1 transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                View PDF
-              </button>
-            )}
+            <button
+              onClick={() => setMobileTab("pdf")}
+              className="px-2.5 py-1.5 text-[11px] font-medium text-emerald bg-emerald-tint border border-emerald-border rounded shadow-sm flex items-center gap-1 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+              View PDF
+            </button>
           </div>
         </div>
 
@@ -407,7 +281,6 @@ export default function ProjectPage() {
                 projectId={projectId}
                 onSourceClick={handleSourceClick}
                 onAttachClick={isAdmin ? () => setShowUpload((prev) => !prev) : undefined}
-                onViewNote={handleViewNote}
               />
             </Suspense>
           </div>
@@ -434,10 +307,7 @@ export default function ProjectPage() {
             </div>
           </div>
 
-          {/* Notes Tab (wrapped to cover full area smoothly) */}
-          <div className={`absolute inset-0 z-40 bg-preview ${mobileTab === "notes" ? "block" : "hidden"}`}>
-            {notesRenderer}
-          </div>
+
         </div>
       </div>
 
@@ -481,7 +351,6 @@ export default function ProjectPage() {
                     onDocumentsChange={handleDocumentsChange}
                     onViewDocument={(docId) => {
                       setActiveDocId(docId);
-                      setRightPaneTab("pdf");
                       setMobileTab("pdf");
                       setShowUpload(false);
                     }}

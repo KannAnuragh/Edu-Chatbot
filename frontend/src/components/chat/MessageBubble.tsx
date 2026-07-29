@@ -68,6 +68,18 @@ export default function MessageBubble({ message, onSourceClick, onViewNote }: Me
           {renderContent(contentToRender)}
         </div>
 
+        {!isUser && message.sources && message.sources.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-1 px-1">
+            {message.sources.map((src, i) => (
+              <SourceBadge
+                key={i}
+                source={src}
+                onClick={onSourceClick ? () => onSourceClick(src) : undefined}
+              />
+            ))}
+          </div>
+        )}
+
 
       </div>
     </div>
