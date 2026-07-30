@@ -82,7 +82,11 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
                 )
             )
             
-            return [hit.payload for hit in results]
+            # Include similarity score in results
+            return [
+                {**hit.payload, "score": hit.score}
+                for hit in results
+            ]
         except Exception as e:
             print(f"Qdrant Search Error: {e}")
             return []

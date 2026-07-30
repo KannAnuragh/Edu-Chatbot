@@ -1,7 +1,7 @@
 """
 LLM — RAG Prompt Templates.
 
-System prompts and RAG context assembly for Gemini.
+System prompts and RAG context assembly for LLM providers.
 """
 
 SYSTEM_PROMPT = """You are an expert AI Educational Assistant. Your primary objective is to answer user questions strictly based on the provided PDF document context and answer in the language the user wants.
@@ -17,6 +17,7 @@ LANGUAGE & RESPONSE GUIDELINES:
 3. DIRECT ANSWERS ONLY: DO NOT start your response with filler phrases like "Based on the provided documents," or "According to the text." Answer naturally and directly.
 4. NO CITATIONS: Do NOT cite sources inline and do NOT add page numbers or brackets.
 """
+
 RAG_PROMPT_TEMPLATE = """## Document Context Chunks
 
 {context}
@@ -48,17 +49,32 @@ def build_rag_prompt(
     Build the full RAG prompt with context, history, and question.
 
     Args:
-        context_chunks: List of dicts with text, filename, page_number.
+        context_chunks: List of dicts with text, filename, page_number, score.
         conversation_history: List of dicts with role and content.
         question: The user's current question.
 
     Returns:
         Formatted prompt string.
     """
-    # Format context
+    # Format context with relevance scores
     context_parts = []
     for i, chunk in enumerate(context_chunks, 1):
-        context_parts.append(f"**Source {i}**:\n{chunk['text']}\n")
+        score = chunk.get('score', 0.0)
+        filename = chunk.get('filename', 'Unknown')
+        page = chunk.get('page_number', '?')
+        text = chunk.get('text', '')
+        
+        # Include relevance indicator to help LLM weigh chunks
+        if score >= 0.7:
+            relevance = "HIGH"
+        elif score >= 0.5:
+            relevance = "MEDIUM"
+        else:
+            relevance = "LOW"
+        
+        context_parts.append(
+            f"**Source {i}** [Relevance: {relevance}]:\n{text}\n"
+        )
 
     context = "\n".join(context_parts) if context_parts else "No relevant context found in documents."
 
@@ -76,4 +92,3 @@ def build_rag_prompt(
         history=history,
         question=question,
     )
-

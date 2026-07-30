@@ -2,6 +2,7 @@
 Google Gemini LLM Integration.
 
 Handles streaming and non-streaming responses using google-genai.
+Includes token usage tracking for observability.
 """
 
 import os
@@ -67,16 +68,41 @@ class GeminiClient:
             return
         
         try:
-            print(f"🤖 [GEMINI API CALL] Model: {settings.LLM_MODEL} | Prompt length: {len(prompt)} chars")
+            print(f"🤖 [GEMINI API CALL] Model: {settings.LLM_MODEL} | Prompt length: {len(prompt)} chars (~{len(prompt) // 4} tokens)", flush=True)
+            
             response_stream = client.aio.models.generate_content_stream(
                 model=settings.LLM_MODEL,
                 contents=prompt,
                 config=self._get_config()
             )
             
+            total_output_chars = 0
+            last_chunk = None
             async for chunk in response_stream:
                 if chunk.text:
+                    total_output_chars += len(chunk.text)
                     yield chunk.text
+                last_chunk = chunk
+            
+            # Extract and log token usage from the final chunk's usage_metadata
+            if last_chunk and hasattr(last_chunk, 'usage_metadata') and last_chunk.usage_metadata:
+                usage = last_chunk.usage_metadata
+                input_tokens = getattr(usage, 'prompt_token_count', 0) or 0
+                output_tokens = getattr(usage, 'candidates_token_count', 0) or 0
+                total_tokens = getattr(usage, 'total_token_count', 0) or (input_tokens + output_tokens)
+                
+                print(f"📊 [GEMINI TOKEN USAGE]", flush=True)
+                print(f"   Input tokens:  {input_tokens}", flush=True)
+                print(f"   Output tokens: {output_tokens}", flush=True)
+                print(f"   Total tokens:  {total_tokens}", flush=True)
+            else:
+                # Fallback to character-based estimation
+                input_tokens_est = len(prompt) // 4
+                output_tokens_est = total_output_chars // 4
+                print(f"📊 [GEMINI TOKEN USAGE (estimated)]", flush=True)
+                print(f"   Input:  ~{input_tokens_est} tokens ({len(prompt)} chars)", flush=True)
+                print(f"   Output: ~{output_tokens_est} tokens ({total_output_chars} chars)", flush=True)
+                print(f"   Total:  ~{input_tokens_est + output_tokens_est} tokens", flush=True)
                     
         except Exception as e:
             print(f"Gemini Streaming Error: {e}")
@@ -95,6 +121,12 @@ class GeminiClient:
                 contents=prompt,
                 config=self._get_config()
             )
+            
+            # Log token usage
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                usage = response.usage_metadata
+                print(f"📊 [GEMINI TOKEN USAGE] Input: {getattr(usage, 'prompt_token_count', '?')} | Output: {getattr(usage, 'candidates_token_count', '?')} | Total: {getattr(usage, 'total_token_count', '?')}", flush=True)
+            
             return response.text
         except Exception as e:
             print(f"Gemini Error: {e}")

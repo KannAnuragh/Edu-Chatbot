@@ -1,3 +1,9 @@
+"""
+Cloudflare Providers.
+
+Implementations for Cloudflare Workers AI (Embeddings, LLM) and Cloudflare Vectorize (Vector DB).
+"""
+
 import json
 import uuid
 import time
@@ -105,9 +111,16 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
             
             data = response.json()
             data_result = data.get("result", {}).get("data", [])
+            
+            # Handle both 2D [[vec]] and flat [vec] response formats
             if len(data_result) > 0 and isinstance(data_result[0], list):
-                return data_result[0]
-            return data_result
+                vector = data_result[0]
+            else:
+                # Flat array — this IS the vector for a single query
+                vector = data_result
+            
+            print(f"📐 [EMBEDDING] Query vector dimension: {len(vector)}", flush=True)
+            return vector
 
 
 class CloudflareVectorDBProvider(BaseVectorDBProvider):
@@ -210,17 +223,29 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
                 url,
                 headers=_get_cf_headers(),
                 json=payload,
-                timeout=10.0
+                timeout=15.0
             )
             if not response.is_success:
-                print(f"Cloudflare Vectorize Query Error: {response.text}")
+                print(f"❌ [VECTORIZE QUERY ERROR] Status: {response.status_code} | Body: {response.text}", flush=True)
                 return []
                 
             data = response.json()
+            
+            # Debug: Log raw response structure
+            matches_raw = data.get("result", {}).get("matches", [])
+            print(f"🔎 [VECTORIZE RAW] Got {len(matches_raw)} matches from Cloudflare Vectorize", flush=True)
+            
             results = []
-            for match in data.get("result", {}).get("matches", []):
+            for match in matches_raw:
                 if "metadata" in match:
-                    results.append(match["metadata"])
+                    result = dict(match["metadata"])
+                    # CRITICAL FIX: Include the similarity score in results
+                    result["score"] = match.get("score", 0.0)
+                    results.append(result)
+                    
+            # Sort by score descending (highest relevance first)
+            results.sort(key=lambda x: x.get("score", 0.0), reverse=True)
+            
             return results
 
     async def delete_document_vectors(self, user_id: str, document_id: str):
@@ -269,9 +294,12 @@ class CloudflareLLMProvider(BaseLLMProvider):
             "max_tokens": 2048
         }
         
+        print(f"🤖 [CLOUDFLARE LLM] Model: {settings.CLOUDFLARE_LLM_MODEL} | Prompt length: {len(prompt)} chars (~{len(prompt) // 4} tokens)", flush=True)
+        
+        total_output_chars = 0
         async with httpx.AsyncClient() as client:
             try:
-                async with client.stream("POST", url, headers=_get_cf_headers(), json=payload) as response:
+                async with client.stream("POST", url, headers=_get_cf_headers(), json=payload, timeout=60.0) as response:
                     if not response.is_success:
                         error_text = await response.aread()
                         yield f"\n\n[Cloudflare AI Error: {error_text.decode('utf-8')}]"
@@ -285,11 +313,21 @@ class CloudflareLLMProvider(BaseLLMProvider):
                             try:
                                 data = json.loads(data_str)
                                 if "response" in data:
-                                    yield str(data["response"])
+                                    text = str(data["response"])
+                                    total_output_chars += len(text)
+                                    yield text
                             except json.JSONDecodeError:
                                 pass
             except Exception as e:
                 yield f"\n\n[Streaming Error: {str(e)}]"
+        
+        # Log token usage estimate
+        input_tokens_est = len(prompt) // 4
+        output_tokens_est = total_output_chars // 4
+        print(f"📊 [CLOUDFLARE LLM TOKEN USAGE]", flush=True)
+        print(f"   Input:  ~{input_tokens_est} tokens ({len(prompt)} chars)", flush=True)
+        print(f"   Output: ~{output_tokens_est} tokens ({total_output_chars} chars)", flush=True)
+        print(f"   Total:  ~{input_tokens_est + output_tokens_est} tokens", flush=True)
 
     def generate_response(self, prompt: str) -> str:
         url = self._get_url()
