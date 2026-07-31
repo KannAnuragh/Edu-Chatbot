@@ -8,7 +8,7 @@ import time
 from typing import Tuple
 from langdetect import detect, DetectorFactory
 
-from ingestion.extractor import extract_text_from_pdf
+from ingestion.extractor import extract_text_from_file
 from ingestion.chunker import chunk_text
 from providers.factory import embedding_model, get_vector_db_client
 
@@ -41,7 +41,7 @@ def run_ingestion_pipeline(
     
     # 1. Extract Text
     t0 = time.time()
-    pages_text, page_count = extract_text_from_pdf(file_path)
+    pages_text, page_count = extract_text_from_file(file_path)
     t1 = time.time()
     print(f"⏱️ [Pipeline] Extraction took {t1 - t0:.2f} seconds for {page_count} pages.")
     

@@ -53,8 +53,8 @@ async def upload_document(
         raise HTTPException(status_code=404, detail="Course not found or unauthorized")
 
     # Validate file type
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+    if not file.filename.lower().endswith((".pdf", ".txt")):
+        raise HTTPException(status_code=400, detail="Only PDF and TXT files are allowed")
 
     # Create document record
     document = Document(
@@ -124,8 +124,8 @@ async def bulk_upload_documents(
     
     for file in files:
         # Validate file type
-        if not file.filename.lower().endswith(".pdf"):
-            raise HTTPException(status_code=400, detail=f"Only PDF files are allowed. '{file.filename}' is invalid.")
+        if not file.filename.lower().endswith((".pdf", ".txt")):
+            raise HTTPException(status_code=400, detail=f"Only PDF and TXT files are allowed. '{file.filename}' is invalid.")
 
         # Create document record
         document = Document(

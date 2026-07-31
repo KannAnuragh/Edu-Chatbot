@@ -84,10 +84,6 @@ class Settings(BaseSettings):
     DEFAULT_ADMIN_EMAIL: str = "admin@gmail.com"
     DEFAULT_ADMIN_PASSWORD: str = "asdfasdf"
 
-    # --- OCR ---
-    FORCE_OCR: bool = False
-    OCR_LANGUAGES: str = "eng+mal"
-
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

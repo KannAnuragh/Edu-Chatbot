@@ -2,11 +2,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies (Tesseract OCR, build tools)
+# Install system dependencies (build tools)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    tesseract-ocr \
-    tesseract-ocr-eng \
-    tesseract-ocr-mal \
     build-essential \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
