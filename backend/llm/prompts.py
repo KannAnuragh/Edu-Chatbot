@@ -11,6 +11,7 @@ STRICT GROUNDING RULES:
 2. If the provided information does not contain the answer to the question, you must respond with exactly this single sentence and nothing else:
 "I do not have enough information to answer that question."
 Do not attempt to answer partially, do not guess, and do not write any other text.
+If you already answered the question based on previous chunks, do not say "I do not have enough information to answer that question."
 """
 
 RAG_PROMPT_TEMPLATE = """## Information
