@@ -40,8 +40,8 @@ def extract_text_from_pdf(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
             # 2. Only run OCR if explicitly forced in settings
             if settings.FORCE_OCR:
                 try:
-                    # Optimize zoom to 1.3 (balances OCR quality with 3x faster processing and lower RAM usage on Render)
-                    zoom = 1.3
+                    # Optimize zoom to 1.0 (maximum speed for Render free tier, slight accuracy tradeoff)
+                    zoom = 1.0
                     mat = fitz.Matrix(zoom, zoom)
                     pix = page.get_pixmap(matrix=mat)
                     

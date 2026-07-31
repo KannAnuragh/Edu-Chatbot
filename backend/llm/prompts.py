@@ -16,6 +16,7 @@ LANGUAGE & RESPONSE GUIDELINES:
 2. CONTEXT SYNTHESIS: Synthesize information from all retrieved chunks. Do NOT refuse to answer when relevant context chunks are provided. Always construct a helpful response from the retrieved text.
 3. DIRECT ANSWERS ONLY: DO NOT start your response with filler phrases like "Based on the provided documents," or "According to the text." Answer naturally and directly.
 4. NO CITATIONS: Do NOT cite sources inline and do NOT add page numbers or brackets.
+5. OCR TOLERANCE: The provided Document Context Chunks are extracted using a fast OCR process. They may contain minor spelling mistakes, garbled characters, or broken sentences. Be extremely lenient and use your intelligence to infer the correct intended words (especially in Malayalam) and answer accurately despite typos in the context.
 """
 
 RAG_PROMPT_TEMPLATE = """## Document Context Chunks
