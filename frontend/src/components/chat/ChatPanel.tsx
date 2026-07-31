@@ -165,41 +165,43 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
       {/* Messages Area */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6 pb-32"
+        className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 pb-32"
       >
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted mt-10">
-            <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-border flex items-center justify-center mb-6">
-              <Bot className="w-8 h-8 text-emerald" />
+        <div className="max-w-3xl mx-auto space-y-6">
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-muted my-20">
+              <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-border flex items-center justify-center mb-6">
+                <Bot className="w-8 h-8 text-emerald" />
+              </div>
+              <h3 className="font-heading font-medium text-ink text-lg mb-2">How can I help you learn?</h3>
+              <p className="text-sm text-center max-w-sm text-muted leading-relaxed">
+                Ask questions about the course documents, and I'll find the answers directly from the materials.
+              </p>
             </div>
-            <h3 className="font-heading font-medium text-ink mb-2">How can I help you learn?</h3>
-            <p className="text-sm text-center max-w-xs text-muted leading-relaxed">
-              Ask questions about the course documents, and I'll find the answers with exact citations.
-            </p>
-          </div>
-        ) : (
-          messages.map((msg) => (
-            <MessageBubble 
-              key={msg.id} 
-              message={msg} 
-              onSourceClick={onSourceClick}
-              onViewNote={onViewNote} 
-            />
-          ))
-        )}
-        
-        {isTyping && messages.length > 0 && messages[messages.length - 1].role === "user" && (
-          <div className="flex items-start gap-4">
-             <div className="w-8 h-8 rounded-full bg-emerald flex items-center justify-center flex-shrink-0 text-white shadow-sm">
-              <Bot size={18} />
+          ) : (
+            messages.map((msg) => (
+              <MessageBubble 
+                key={msg.id} 
+                message={msg} 
+                onSourceClick={onSourceClick}
+                onViewNote={onViewNote} 
+              />
+            ))
+          )}
+          
+          {isTyping && messages.length > 0 && messages[messages.length - 1].role === "user" && (
+            <div className="flex items-start gap-4">
+               <div className="w-8 h-8 rounded-full bg-emerald flex items-center justify-center flex-shrink-0 text-white shadow-sm">
+                <Bot size={18} />
+              </div>
+              <div className="flex items-center gap-1.5 h-8 bg-white border border-border rounded-2xl rounded-tl-sm px-4 shadow-sm">
+                <div className="typing-dot" />
+                <div className="typing-dot" />
+                <div className="typing-dot" />
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 h-8 bg-white border border-border rounded-2xl rounded-tl-sm px-4 shadow-sm">
-              <div className="typing-dot" />
-              <div className="typing-dot" />
-              <div className="typing-dot" />
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Composer Area - Floating at bottom */}
