@@ -20,7 +20,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const searchParams = useSearchParams();
@@ -96,7 +96,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
     let assistantMsgContent = "";
     let assistantSources: SourceReference[] = [];
     let assistantMsgId = (Date.now() + 1).toString();
-    
+
     // Create an empty placeholder message for the assistant
     setMessages((prev) => [
       ...prev,
@@ -118,24 +118,24 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
             setConversationId(event.data.conversation_id);
           } else if (event.type === "sources") {
             assistantSources = event.data;
-            setMessages((prev) => 
-              prev.map((msg) => 
+            setMessages((prev) =>
+              prev.map((msg) =>
                 msg.id === assistantMsgId ? { ...msg, sources: assistantSources } : msg
               )
             );
           } else if (event.type === "token") {
             if (event.data.text) {
-               assistantMsgContent += event.data.text;
-               setMessages((prev) => 
-                 prev.map((msg) => 
-                   msg.id === assistantMsgId ? { ...msg, content: assistantMsgContent } : msg
-                 )
-               );
+              assistantMsgContent += event.data.text;
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === assistantMsgId ? { ...msg, content: assistantMsgContent } : msg
+                )
+              );
             }
           } else if (event.type === "error") {
             assistantMsgContent += `\n\n[Error: ${event.data.error || 'Unknown error'}]`;
-            setMessages((prev) => 
-              prev.map((msg) => 
+            setMessages((prev) =>
+              prev.map((msg) =>
                 msg.id === assistantMsgId ? { ...msg, content: assistantMsgContent } : msg
               )
             );
@@ -148,10 +148,10 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
       const errDisplay = isAuthErr
         ? "Session expired or invalid login. Please log out and log in again."
         : error.message || "Network error while connecting to backend.";
-      setMessages((prev) => 
-        prev.map((msg) => 
-          msg.id === assistantMsgId 
-            ? { ...msg, content: assistantMsgContent + `\n\n[System Error: ${errDisplay}]` } 
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantMsgId
+            ? { ...msg, content: assistantMsgContent + `\n\n[System Error: ${errDisplay}]` }
             : msg
         )
       );
@@ -163,11 +163,11 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
   return (
     <div className="flex flex-col h-full bg-canvas relative">
       {/* Messages Area */}
-      <div 
+      <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 pb-44"
       >
-        <div className="max-w-3xl mx-auto space-y-6 pb-48">
+        <div className="max-w-3xl mx-auto space-y-6 pb-12">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted my-20">
               <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-border flex items-center justify-center mb-6">
@@ -180,18 +180,18 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
             </div>
           ) : (
             messages.map((msg) => (
-              <MessageBubble 
-                key={msg.id} 
-                message={msg} 
+              <MessageBubble
+                key={msg.id}
+                message={msg}
                 onSourceClick={onSourceClick}
-                onViewNote={onViewNote} 
+                onViewNote={onViewNote}
               />
             ))
           )}
-          
+
           {isTyping && messages.length > 0 && messages[messages.length - 1].role === "user" && (
             <div className="flex items-start gap-4">
-               <div className="w-8 h-8 rounded-full bg-emerald flex items-center justify-center flex-shrink-0 text-white shadow-sm">
+              <div className="w-8 h-8 rounded-full bg-emerald flex items-center justify-center flex-shrink-0 text-white shadow-sm">
                 <Bot size={18} />
               </div>
               <div className="flex items-center gap-1.5 h-8 bg-white border border-border rounded-2xl rounded-tl-sm px-4 shadow-sm">
@@ -207,9 +207,9 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
       {/* Composer Area - Floating at bottom */}
       <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-canvas via-canvas/95 to-transparent pb-safe z-10">
         <div className="max-w-3xl mx-auto relative flex items-end gap-2 bg-white rounded-2xl shadow-[0_2px_12px_rgb(0,0,0,0.06)] border border-border p-2 pr-3 focus-within:border-emerald/50 focus-within:shadow-[0_2px_16px_rgba(16,185,129,0.1)] transition-all">
-          
+
           {onAttachClick && (
-            <button 
+            <button
               onClick={onAttachClick}
               className="p-2.5 text-muted hover:text-emerald hover:bg-emerald-tint rounded-xl transition-colors mb-0.5"
               title="Upload PDF"
@@ -234,8 +234,8 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
             disabled={!inputValue.trim() || isTyping}
             className={cn(
               "p-2.5 rounded-xl transition-all mb-0.5",
-              inputValue.trim() && !isTyping 
-                ? "bg-emerald text-white shadow-sm hover:bg-emerald-deep active:scale-95" 
+              inputValue.trim() && !isTyping
+                ? "bg-emerald text-white shadow-sm hover:bg-emerald-deep active:scale-95"
                 : "bg-rail text-muted cursor-not-allowed"
             )}
           >
@@ -243,9 +243,9 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
           </button>
         </div>
         <div className="text-center mt-2">
-           <span className="text-[10px] text-muted font-medium tracking-wide opacity-70">
-             AI responses are generated based on course materials and may contain inaccuracies.
-           </span>
+          <span className="text-[10px] text-muted font-medium tracking-wide opacity-70">
+            AI responses are generated based on course materials and may contain inaccuracies.
+          </span>
         </div>
       </div>
     </div>
