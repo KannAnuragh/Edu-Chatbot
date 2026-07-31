@@ -210,13 +210,19 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
         limit: int = 7
     ) -> List[Dict[str, Any]]:
         url = f"{self._get_base_url()}/query"
+        
+        # NOTE: Cloudflare Vectorize requires explicit metadata indexes to be
+        # created before filters work. Without a metadata index on 'course_id',
+        # filtering silently returns 0 results. We do course filtering in Python
+        # (in chat_service.py) instead.
         payload = {
             "vector": query_vector,
             "topK": limit,
             "returnValues": False,
-            "returnMetadata": "all",
-            "filter": {"course_id": str(course_id).lower().strip()}
+            "returnMetadata": "all"
         }
+        
+        print(f"🔎 [VECTORIZE SEARCH] Index: {settings.CLOUDFLARE_VECTORIZE_INDEX} | topK: {limit} | course_id: {course_id}", flush=True)
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -233,13 +239,18 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
             
             # Debug: Log raw response structure
             matches_raw = data.get("result", {}).get("matches", [])
-            print(f"🔎 [VECTORIZE RAW] Got {len(matches_raw)} matches from Cloudflare Vectorize", flush=True)
+            print(f"🔎 [VECTORIZE RAW] Got {len(matches_raw)} raw matches from Cloudflare Vectorize", flush=True)
+            
+            if matches_raw:
+                # Log first match structure for debugging
+                first = matches_raw[0]
+                print(f"🔎 [VECTORIZE FIRST MATCH] id={first.get('id')} score={first.get('score')} metadata_keys={list(first.get('metadata', {}).keys())}", flush=True)
             
             results = []
             for match in matches_raw:
                 if "metadata" in match:
                     result = dict(match["metadata"])
-                    # CRITICAL FIX: Include the similarity score in results
+                    # CRITICAL: Include the similarity score in results
                     result["score"] = match.get("score", 0.0)
                     results.append(result)
                     
