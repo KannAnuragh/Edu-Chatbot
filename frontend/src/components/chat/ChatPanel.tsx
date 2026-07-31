@@ -165,9 +165,9 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
       {/* Messages Area */}
       <div 
         ref={scrollRef}
-        className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 pb-32"
+        className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 pb-44"
       >
-        <div className="max-w-3xl mx-auto space-y-6">
+        <div className="max-w-3xl mx-auto space-y-6 pb-48">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted my-20">
               <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-border flex items-center justify-center mb-6">
