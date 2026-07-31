@@ -33,33 +33,35 @@ def _get_payyans():
 def _detect_legacy_font(page) -> str:
     """
     Detect if a PDF page uses a legacy Malayalam font (ML-TT*).
-    
-    Returns the font name if found, or empty string if not.
-    PyMuPDF's page.get_fonts() returns tuples:
-      (xref, ext, type, basefont, name, encoding)
+    Uses both font metadata and content heuristics.
     """
     try:
+        # 1. Metadata check
         fonts = page.get_fonts(full=True)
         for font_info in fonts:
-            # basefont is at index 3, name is at index 4
             basefont = font_info[3] if len(font_info) > 3 else ""
             name = font_info[4] if len(font_info) > 4 else ""
             
             for font_str in [basefont, name]:
                 if not font_str:
                     continue
-                # Match common legacy Malayalam font patterns
-                # e.g. ML-TTKarthika, ML-TTRevathi, ML-TTAmbili, MLTTKarthika
                 font_upper = font_str.upper().replace(" ", "").replace("-", "")
-                if font_upper.startswith("MLTT"):
-                    # Normalize to the standard name format: ML-TTKarthika
-                    # Extract the part after MLTT
-                    suffix = font_str.replace("ML-TT", "").replace("ML-", "").replace("MLTT", "").replace("mltt", "")
-                    if not suffix:
-                        suffix = "Karthika"  # Default
-                    # Construct standard name
-                    standard_name = f"ML-TT{suffix}"
-                    return standard_name
+                if "MLTT" in font_upper or "FML" in font_upper:
+                    return "ML-TTKarthika"  # Default to most common standard mapping
+                    
+        # 2. Content Heuristic check (Fallback if metadata is stripped/different)
+        text = page.get_text("text")
+        if text:
+            # These specific extended ASCII characters are the hallmarks of FML/ML legacy fonts
+            # used for Malayalam rendering instead of proper Unicode.
+            signature_chars = {'∂', 'Ø', '¬', '®', '¿', 'ƒ', 'Ω', '°'}
+            char_count = sum(1 for c in text if c in signature_chars)
+            
+            # If we see a high density of these characters, it's definitely a legacy Malayalam font
+            if char_count > 10:
+                print(f"🔤 [FONT DETECT] Content heuristic triggered! Found {char_count} legacy signature characters.", flush=True)
+                return "ML-TTKarthika"
+                
     except Exception as e:
         print(f"⚠️ [FONT DETECT] Error detecting fonts: {e}", flush=True)
     return ""
