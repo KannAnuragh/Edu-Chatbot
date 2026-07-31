@@ -35,6 +35,7 @@ Pillow==11.1.0
 # (Using Cloudflare Vectorize)
 
 # --- AI / LLM ---
+google-genai==0.1.1
 # (Using Cloudflare Workers AI)
 
 # --- Utilities ---

@@ -35,7 +35,8 @@ torch==2.4.1
 qdrant-client==1.11.3
 
 # --- AI / LLM ---
-google-genai==1.5.0
+google-genai==0.1.1
+# (Using Cloudflare Workers AI)
 
 # --- Utilities ---
 pydantic==2.9.2

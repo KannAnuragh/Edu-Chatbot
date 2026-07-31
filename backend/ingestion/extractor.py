@@ -40,26 +40,49 @@ def extract_text_from_pdf(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
             # 2. Only run OCR if explicitly forced in settings
             if settings.FORCE_OCR:
                 try:
-                    # Optimize zoom to 1.0 (maximum speed for Render free tier, slight accuracy tradeoff)
-                    zoom = 1.0
+                    # Render page as image (zoom=1.2 balances quality and image size/network upload speed)
+                    zoom = 1.2
                     mat = fitz.Matrix(zoom, zoom)
                     pix = page.get_pixmap(matrix=mat)
                     
-                    # Convert to PIL Image
+                    # Get PNG bytes
                     img_data = pix.tobytes("png")
-                    img = Image.open(io.BytesIO(img_data))
                     
-                    # Run OCR
-                    print(f"👁️ [OCR] Processing page {i}/{page_count}...", flush=True)
-                    ocr_text = pytesseract.image_to_string(
-                        img, 
-                        lang=settings.OCR_LANGUAGES
+                    # Respect rate limits for Gemini free tier (15 requests per minute -> ~4.5 seconds per request)
+                    # This prevents 429 rate limit errors for large 400-700 page documents
+                    import time
+                    if i > 1:
+                        time.sleep(4.5)
+                    
+                    # Initialize Gemini client
+                    import os
+                    from google import genai
+                    from google.genai import types
+                    
+                    api_key = os.environ.get("GEMINI_API_KEY") or settings.GEMINI_API_KEY or ""
+                    if not api_key:
+                        raise ValueError("GEMINI_API_KEY is not configured. Please set it in your Render Env Vars.")
+                    
+                    client = genai.Client(api_key=api_key.strip())
+                    
+                    print(f"👁️ [GEMINI OCR] Processing page {i}/{page_count}...", flush=True)
+                    
+                    # Call Gemini 2.0 Flash Vision
+                    response = client.models.generate_content(
+                        model='gemini-2.0-flash',
+                        contents=[
+                            types.Part.from_bytes(
+                                data=img_data,
+                                mime_type="image/png"
+                            ),
+                            "Extract all Malayalam and English text from this image. Return only the extracted text, preserving the reading order. Do not write any intro or outro text."
+                        ]
                     )
-                    text = ocr_text.strip()
+                    
+                    text = response.text.strip()
                     
                     # Explicit cleanup
-                    img.close()
-                    del img, img_data, pix
+                    del pix, img_data
                 except Exception as ocr_err:
                     print(f"❌ OCR failed for {file_path} page {i}: {ocr_err}", flush=True)
             
