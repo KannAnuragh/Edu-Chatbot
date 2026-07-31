@@ -120,7 +120,8 @@ class ChatService:
                 else:
                     chunks = []
                 
-                sources = self.retrieval.format_sources(chunks)
+                # User requested to remove citations below the chat
+                sources = []
                 
                 # ═══════════════════════════════════════════════════════════
                 # DETAILED LOGGING FOR RENDER CLI / BACKEND LOGS
@@ -155,7 +156,7 @@ class ChatService:
                 
                 print("═" * 80 + "\n", flush=True)
 
-                # Send sources to client
+                # Send sources to client (empty list to hide citations)
                 yield f"event: sources\ndata: {json.dumps(sources)}\n\n"
 
                 # 4. Get conversation history

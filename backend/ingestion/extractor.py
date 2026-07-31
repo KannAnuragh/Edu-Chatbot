@@ -40,8 +40,8 @@ def extract_text_from_pdf(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
             # 2. Only run OCR if explicitly forced in settings
             if settings.FORCE_OCR:
                 try:
-                    # Render page as image (zoom=2 for better OCR quality)
-                    zoom = 2.0
+                    # Optimize zoom to 1.3 (balances OCR quality with 3x faster processing and lower RAM usage on Render)
+                    zoom = 1.3
                     mat = fitz.Matrix(zoom, zoom)
                     pix = page.get_pixmap(matrix=mat)
                     
@@ -50,6 +50,7 @@ def extract_text_from_pdf(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
                     img = Image.open(io.BytesIO(img_data))
                     
                     # Run OCR
+                    print(f"👁️ [OCR] Processing page {i}/{page_count}...", flush=True)
                     ocr_text = pytesseract.image_to_string(
                         img, 
                         lang=settings.OCR_LANGUAGES
@@ -60,7 +61,7 @@ def extract_text_from_pdf(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
                     img.close()
                     del img, img_data, pix
                 except Exception as ocr_err:
-                    print(f"OCR failed for {file_path} page {i}: {ocr_err}")
+                    print(f"❌ OCR failed for {file_path} page {i}: {ocr_err}", flush=True)
             
             # Only add pages that actually have text
             if text:
