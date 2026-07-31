@@ -26,15 +26,18 @@ redis==5.1.1
 PyMuPDF==1.24.10
 langdetect==1.0.9
 
+# --- Legacy Font Conversion (Offline Malayalam/Hindi) ---
+libindic-payyans @ git+https://github.com/libindic/payyans.git
+
 # --- Embeddings ---
 sentence-transformers==3.1.1
 torch==2.4.1
+
 # --- Vector Database ---
 qdrant-client==1.11.3
 
 # --- AI / LLM ---
 google-genai==1.5.0
-# (Using Cloudflare Workers AI)
 
 # --- Utilities ---
 pydantic==2.9.2
