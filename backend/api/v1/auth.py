@@ -28,30 +28,10 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(request: UserRegisterRequest, db: AsyncSession = Depends(get_db)):
     """Register a new user account."""
-    # Check if email already exists
-    result = await db.execute(select(User).where(User.email == request.email))
-    existing_user = result.scalar_one_or_none()
-
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email already exists",
-        )
-
-    # Create user
-    user = User(
-        email=request.email,
-        password_hash=hash_password(request.password),
-        name=request.name or "User",
-        role=UserRole.STUDENT,
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Registration is disabled. Only the admin can log in.",
     )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-
-    # Generate token
-    token = create_access_token(user.id, user.email)
-    return TokenResponse(access_token=token)
 
 
 @router.post("/login", response_model=TokenResponse)

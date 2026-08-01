@@ -38,8 +38,8 @@ export default function LoginPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-heading font-semibold text-ink tracking-tight mb-1">Welcome back</h1>
-          <p className="text-sm text-muted">Sign in to your workspace</p>
+          <h1 className="text-2xl font-heading font-semibold text-ink tracking-tight mb-1">Admin Login</h1>
+          <p className="text-sm text-muted">Enter your admin credentials</p>
         </div>
 
         {/* Login Form */}
@@ -94,12 +94,6 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 text-center text-[13px] text-muted">
-            Don&apos;t have an account?{" "}
-            <Link href="/register" className="text-emerald hover:text-emerald-deep font-medium transition-colors">
-              Create one
-            </Link>
-          </div>
         </div>
       </div>
     </div>

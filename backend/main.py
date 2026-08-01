@@ -137,21 +137,6 @@ async def ensure_default_users():
             admin.role = UserRole.ADMIN
             print(f"Admin user password verified/updated on startup.")
 
-        # Create Student
-        student_email = "student@example.com"
-        student_query = await session.execute(select(User).where(User.email == student_email))
-        student = student_query.scalar_one_or_none()
-        
-        if not student:
-            student = User(
-                name="Student User",
-                email=student_email,
-                password_hash=hash_password("password123"),
-                role=UserRole.STUDENT
-            )
-            session.add(student)
-            print(f"Created student user: {student_email}")
-            
         await session.commit()
 
 

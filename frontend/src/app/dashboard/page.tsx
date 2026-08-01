@@ -146,7 +146,7 @@ export default function DashboardPage() {
               onClick={() => router.push("/login")}
               className="text-sm font-medium text-emerald hover:text-emerald-hover px-4 py-2 rounded-lg border border-emerald/20 hover:bg-emerald-tint transition-all"
             >
-              Login
+              Admin Login
             </button>
           )}
         </div>

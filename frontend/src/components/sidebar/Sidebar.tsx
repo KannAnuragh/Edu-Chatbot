@@ -179,35 +179,49 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
         )}
       </div>
 
-      {/* Footer User Profile */}
+      {/* Footer User Profile / Admin Login */}
       <div className={cn(
         "p-3 border-t border-border mt-auto flex-shrink-0 flex items-center",
         minimized ? "justify-center flex-col gap-2" : ""
       )}>
-        <div className={cn(
-          "flex items-center rounded-xl bg-white border border-border shadow-sm w-full",
-          minimized ? "p-1 flex-col gap-2" : "gap-3 p-2"
-        )}>
+        {user ? (
           <div className={cn(
-            "rounded-full bg-emerald-tint text-emerald flex items-center justify-center flex-shrink-0",
-            minimized ? "w-10 h-10" : "w-8 h-8"
+            "flex items-center rounded-xl bg-white border border-border shadow-sm w-full",
+            minimized ? "p-1 flex-col gap-2" : "gap-3 p-2"
           )}>
-            <User size={16} />
-          </div>
-          {!minimized && (
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium text-ink truncate">{user?.name}</div>
-              <div className="text-[10px] text-muted capitalize">{user?.role}</div>
+            <div className={cn(
+              "rounded-full bg-emerald-tint text-emerald flex items-center justify-center flex-shrink-0",
+              minimized ? "w-10 h-10" : "w-8 h-8"
+            )}>
+              <User size={16} />
             </div>
-          )}
-          <button 
-            onClick={logout}
-            className="p-1.5 text-muted hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
-            title="Log out"
+            {!minimized && (
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium text-ink truncate">{user.name}</div>
+                <div className="text-[10px] text-muted capitalize">{user.role}</div>
+              </div>
+            )}
+            <button 
+              onClick={logout}
+              className="p-1.5 text-muted hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
+              title="Log out"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => router.push("/login")}
+            className={cn(
+              "flex items-center justify-center rounded-xl bg-white border border-border shadow-sm hover:border-emerald/30 hover:text-emerald transition-colors w-full text-muted",
+              minimized ? "p-2" : "p-2 gap-2 text-xs font-medium"
+            )}
+            title="Admin Login"
           >
-            <LogOut size={16} />
+            <User size={16} className={cn(minimized ? "" : "text-emerald")} />
+            {!minimized && <span>Admin Login</span>}
           </button>
-        </div>
+        )}
       </div>
     </div>
   );
