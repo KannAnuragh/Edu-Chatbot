@@ -9,7 +9,8 @@ from sqlalchemy import select, func, or_, delete
 from sqlalchemy.orm import selectinload
 
 from core.database import get_db
-from api.deps import get_current_user, get_current_admin
+from api.deps import get_current_user, get_current_admin, get_optional_user
+from typing import Optional
 from models.user import User, UserRole
 from models.course import Course
 from models.enrollment import Enrollment
