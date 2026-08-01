@@ -4,6 +4,7 @@ Document Ingestion Pipeline.
 Orchestrates extraction, chunking, embedding, and vector storage.
 """
 
+import re
 import time
 from typing import Tuple
 from langdetect import detect, DetectorFactory
@@ -22,6 +23,19 @@ def detect_language(text: str) -> str:
         return detect(text[:1000])
     except:
         return "en"
+
+
+def clean_malayalam_text(text: str) -> str:
+    """
+    Removes soft hyphens and line-break hyphens common in Malayalam PDF extractions.
+    """
+    # Remove hyphens that split Malayalam characters (Unicode range: \u0D00-\u0D7F)
+    cleaned_text = re.sub(r'([\u0D00-\u0D7F])-\s*([\u0D00-\u0D7F])', r'\1\2', text)
+    
+    # Optional: Clean up multiple spaces caused by line breaks
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+    
+    return cleaned_text
 
 
 def run_ingestion_pipeline(
@@ -47,6 +61,9 @@ def run_ingestion_pipeline(
     
     if not pages_text:
         raise ValueError("No text could be extracted from the PDF")
+        
+    # Clean text to remove line-break hyphens and artifacts
+    pages_text = [(page_num, clean_malayalam_text(text)) for page_num, text in pages_text]
         
     # 2. Detect Language
     full_text_sample = "\n".join([t for _, t in pages_text[:5]])
