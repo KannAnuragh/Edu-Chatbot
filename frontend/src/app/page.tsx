@@ -10,13 +10,9 @@ export default function Home() {
 
   useEffect(() => {
     if (!loading) {
-      if (isAuthenticated) {
-        router.push("/dashboard");
-      } else {
-        router.push("/login");
-      }
+      router.push("/dashboard");
     }
-  }, [isAuthenticated, loading, router]);
+  }, [loading, router]);
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-canvas">

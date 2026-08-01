@@ -32,9 +32,9 @@ class ChatService:
         
     async def process_chat(
         self,
-        user_id: UUID,
         course_id: UUID,
         message_text: str,
+        user_id: Optional[UUID] = None,
         conversation_id: Optional[UUID] = None,
     ) -> AsyncGenerator[str, None]:
         """
@@ -56,14 +56,15 @@ class ChatService:
                     await db.flush()
                     conversation_id = conversation.id
                 else:
-                    # Verify conversation exists and belongs to user
-                    result = await db.execute(
-                        select(Conversation).where(
-                            Conversation.id == conversation_id,
-                            Conversation.user_id == user_id,
-                            Conversation.course_id == course_id
-                        )
+                    # Verify conversation exists and belongs to user (if user is provided)
+                    query = select(Conversation).where(
+                        Conversation.id == conversation_id,
+                        Conversation.course_id == course_id
                     )
+                    if user_id is not None:
+                        query = query.where(Conversation.user_id == user_id)
+                        
+                    result = await db.execute(query)
                     if not result.scalar_one_or_none():
                         yield f"event: error\ndata: {json.dumps({'error': 'Conversation not found'})}\n\n"
                         return
@@ -83,7 +84,7 @@ class ChatService:
                 # 3. Retrieve relevant chunks
                 t_retrieval_start = time.time()
                 raw_chunks = await self.retrieval.retrieve_relevant_chunks(
-                    user_id=str(user_id),
+                    user_id=str(user_id) if user_id else None,
                     course_id=str(course_id),
                     query=message_text,
                     top_k=10  # Fetch more, then filter by relevance

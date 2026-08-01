@@ -8,8 +8,9 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from typing import Optional
 from core.database import get_db
-from api.deps import get_current_user
+from api.deps import get_current_user, get_optional_user
 from models.user import User
 from models.conversation import Conversation
 from schemas.chat import (
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/courses/{course_id}", tags=["Chat"])
 async def chat_with_course(
     course_id: UUID,
     request: ChatRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """Stream chat response using Gemini and RAG."""
     from services.chat_service import ChatService
@@ -34,7 +35,7 @@ async def chat_with_course(
     
     return StreamingResponse(
         chat_service.process_chat(
-            user_id=current_user.id,
+            user_id=current_user.id if current_user else None,
             course_id=course_id,
             message_text=request.message,
             conversation_id=request.conversation_id,

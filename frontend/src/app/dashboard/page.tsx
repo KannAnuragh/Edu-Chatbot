@@ -113,15 +113,17 @@ export default function DashboardPage() {
             <BookOpen size={16} className="text-emerald" />
           </div>
           <h1 className="font-heading font-semibold text-lg text-ink">
-            {isAdmin ? "Admin Dashboard" : "My Courses"}
+            {isAdmin ? "Admin Dashboard" : (user ? "My Courses" : "Available Courses")}
           </h1>
         </div>
         
         <div className="flex items-center gap-4">
-          <div className="hidden md:flex items-center gap-2 text-sm text-muted mr-4">
-            <span className="w-2 h-2 rounded-full bg-emerald"></span>
-            {user?.name}
-          </div>
+          {user ? (
+            <div className="hidden md:flex items-center gap-2 text-sm text-muted mr-4">
+              <span className="w-2 h-2 rounded-full bg-emerald"></span>
+              {user.name}
+            </div>
+          ) : null}
           {isAdmin && (
             <button
               onClick={handleCreateCourse}
@@ -131,13 +133,22 @@ export default function DashboardPage() {
               New Course
             </button>
           )}
-          <button
-            onClick={handleLogout}
-            className="p-2 text-muted hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-200"
-            title="Logout"
-          >
-            <LogOut size={18} />
-          </button>
+          {user ? (
+            <button
+              onClick={handleLogout}
+              className="p-2 text-muted hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-200"
+              title="Logout"
+            >
+              <LogOut size={18} />
+            </button>
+          ) : (
+            <button
+              onClick={() => router.push("/login")}
+              className="text-sm font-medium text-emerald hover:text-emerald-hover px-4 py-2 rounded-lg border border-emerald/20 hover:bg-emerald-tint transition-all"
+            >
+              Login
+            </button>
+          )}
         </div>
       </div>
 

@@ -176,12 +176,18 @@ async def startup_event():
             async with engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
                 
-            # 2. Automatically add badge_color if missing (in a separate transaction)
+            # 2. Automatically apply schema migrations (in a separate transaction)
             try:
                 async with engine.begin() as conn:
                     await conn.execute(text("ALTER TABLE courses ADD COLUMN badge_color VARCHAR(50) DEFAULT 'emerald'"))
             except Exception:
                 pass
+            
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(text("ALTER TABLE conversations ALTER COLUMN user_id DROP NOT NULL"))
+            except Exception as e:
+                print(f"Schema alter for conversation user_id failed: {e}")
 
             print("Database successfully initialized during startup.")
             break

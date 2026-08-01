@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, AsyncGenerator
+from typing import List, Dict, Any, AsyncGenerator, Optional
 
 class BaseEmbeddingProvider:
     def encode(self, texts: List[str], batch_size: int = 32) -> List[List[float]]:
@@ -24,9 +24,9 @@ class BaseVectorDBProvider:
 
     async def search(
         self, 
-        user_id: str, 
         course_id: str, 
         query_vector: List[float], 
+        user_id: Optional[str] = None, 
         limit: int = 5
     ) -> List[Dict[str, Any]]:
         raise NotImplementedError

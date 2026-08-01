@@ -18,36 +18,47 @@ from models.user import User
 security = HTTPBearer()
 
 
+from typing import Optional
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Request
+
+security = HTTPBearer(auto_error=False)
+
+async def get_optional_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> Optional[User]:
+    """Check for token manually and return user if found, else None."""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None
+        
+    token = auth_header.split(" ")[1]
+    payload = decode_access_token(token)
+    if not payload:
+        return None
+        
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+        
+    result = await db.execute(select(User).where(User.id == UUID(user_id)))
+    return result.scalar_one_or_none()
+
+
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    """Extract and validate JWT token, return the authenticated user."""
-    token = credentials.credentials
-    payload = decode_access_token(token)
-
-    if payload is None:
+    """Extract and validate JWT token, return the authenticated user (requires auth)."""
+    user = await get_optional_user(request, db)
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
+            detail="Invalid, missing or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    user_id = payload.get("sub")
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-        )
-
-    result = await db.execute(select(User).where(User.id == UUID(user_id)))
-    user = result.scalar_one_or_none()
-
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
+    return user
 
     return user
 

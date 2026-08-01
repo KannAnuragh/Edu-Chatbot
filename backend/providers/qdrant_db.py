@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from qdrant_client import QdrantClient, AsyncQdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
 import uuid
@@ -60,11 +60,14 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
 
     async def search(
         self, 
-        user_id: str, 
         course_id: str, 
         query_vector: List[float], 
+        user_id: Optional[str] = None, 
         limit: int = 5
     ) -> List[Dict[str, Any]]:
+        if not user_id:
+            raise ValueError("Anonymous chat (missing user_id) is not supported with the current Qdrant collection architecture.")
+            
         collection_name = f"user_{user_id.replace('-', '_')}"
         
         try:

@@ -8,7 +8,7 @@ import json
 import uuid
 import time
 import httpx
-from typing import List, Dict, Any, AsyncGenerator
+from typing import List, Dict, Any, AsyncGenerator, Optional
 
 from core.config import settings
 from llm.prompts import SYSTEM_PROMPT
@@ -241,9 +241,9 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
 
     async def search(
         self, 
-        user_id: str, 
         course_id: str, 
         query_vector: List[float], 
+        user_id: Optional[str] = None, 
         limit: int = 7
     ) -> List[Dict[str, Any]]:
         url = f"{self._get_base_url()}/query"

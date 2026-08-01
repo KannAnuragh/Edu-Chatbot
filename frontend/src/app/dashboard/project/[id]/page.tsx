@@ -38,12 +38,6 @@ export default function ProjectPage() {
     return () => document.removeEventListener("dragover", handleGlobalDragOver);
   }, [isAdmin]);
 
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push("/login");
-    }
-  }, [isAuthenticated, authLoading, router]);
-
   // Redirect admins to the admin dashboard if navigated without explicit chat flag
   useEffect(() => {
     if (!authLoading && user?.role === "admin" && projectId) {
@@ -55,14 +49,14 @@ export default function ProjectPage() {
   }, [user, authLoading, projectId, router]);
 
   useEffect(() => {
-    if (projectId && isAuthenticated) {
+    if (projectId && !authLoading) {
       loadProject();
       loadDocuments();
-      if (!isAdmin) {
+      if (user && !isAdmin) {
         api.enrollCourse(projectId).catch(() => {});
       }
     }
-  }, [projectId, isAuthenticated, isAdmin]);
+  }, [projectId, authLoading, user, isAdmin]);
 
   const loadProject = async () => {
     try {
@@ -132,7 +126,6 @@ export default function ProjectPage() {
     );
   }
 
-  if (!isAuthenticated) return null;
 
   return (
     <>

@@ -4,7 +4,7 @@ Retrieval Service.
 Handles searching Qdrant and formatting sources.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import asyncio
 
 from providers.factory import embedding_model, get_vector_db_client
@@ -18,9 +18,9 @@ class RetrievalService:
 
     async def retrieve_relevant_chunks(
         self, 
-        user_id: str, 
         course_id: str, 
         query: str, 
+        user_id: Optional[str] = None,
         top_k: int = 7
     ) -> List[Dict[str, Any]]:
         """
