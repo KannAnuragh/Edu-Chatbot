@@ -28,15 +28,21 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
     def _get_url(self):
         return f"https://api.cloudflare.com/client/v4/accounts/{settings.CLOUDFLARE_ACCOUNT_ID}/ai/run/{settings.CLOUDFLARE_EMBEDDING_MODEL}"
 
-    def encode(self, texts: List[str], batch_size: int = 20) -> List[List[float]]:
+    def encode(self, texts: List[str], batch_size: int = 5) -> List[List[float]]:
         all_embeddings = []
+        # Filter out empty or whitespace-only strings
+        valid_texts = [t for t in texts if t and str(t).strip()]
+        if not valid_texts:
+            return []
+
         with httpx.Client() as client:
-            for i in range(0, len(texts), batch_size):
-                batch = texts[i:i+batch_size]
+            for i in range(0, len(valid_texts), batch_size):
+                batch = valid_texts[i:i+batch_size]
                 
-                # Retry logic for 429 / other transient errors
                 response = None
-                max_retries = 5
+                max_retries = 3
+                success = False
+
                 for attempt in range(max_retries):
                     try:
                         response = client.post(
@@ -46,68 +52,85 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
                             timeout=45.0
                         )
                         if response.status_code == 429:
-                            if attempt == max_retries - 1:
-                                print(f"⚠️ Cloudflare rate limit hit (429). Max retries exceeded. Raising error.", flush=True)
-                                response.raise_for_status()
                             wait_time = 2 ** attempt
                             print(f"⚠️ Cloudflare rate limit hit (429). Retrying in {wait_time}s...", flush=True)
                             time.sleep(wait_time)
                             continue
-                        response.raise_for_status()
+
+                        if not response.is_success:
+                            print(f"❌ Cloudflare Embedding Error ({response.status_code}): {response.text}", flush=True)
+                            if response.status_code == 400:
+                                # Non-retryable 400 Bad Request — break retry loop to trigger single-item fallback
+                                break
+                            response.raise_for_status()
+
+                        success = True
                         break
                     except (httpx.HTTPError, Exception) as e:
                         if attempt == max_retries - 1:
-                            raise e
-                        wait_time = 2 ** attempt
-                        print(f"⚠️ Cloudflare API call failed ({e}). Retrying in {wait_time}s...", flush=True)
-                        time.sleep(wait_time)
+                            print(f"⚠️ Cloudflare embedding batch attempt failed: {e}", flush=True)
+                        else:
+                            time.sleep(1)
 
-                data = response.json()
-                
-                data_result = data.get("result", {}).get("data", [])
-                if len(data_result) > 0 and isinstance(data_result[0], list):
-                    # Data is already 2D (list of list of floats)
-                    all_embeddings.extend(data_result)
-                else:
-                    # Data is flat, reshape it
-                    shape = data.get("result", {}).get("shape", [])
-                    default_dim = 1024 if "bge-m3" in settings.CLOUDFLARE_EMBEDDING_MODEL.lower() else 768
-                    if len(shape) >= 2:
-                        dim = shape[1]
+                if success and response and response.is_success:
+                    data = response.json()
+                    data_result = data.get("result", {}).get("data", [])
+                    if len(data_result) > 0 and isinstance(data_result[0], list):
+                        # Data is already 2D (list of list of floats)
+                        all_embeddings.extend(data_result)
                     else:
-                        dim = len(data_result) // len(batch) if len(batch) > 0 else default_dim
-                    
-                    if dim <= 0:
-                        dim = default_dim
-                    
-                    reshaped_data = [data_result[j:j+dim] for j in range(0, len(data_result), dim)]
-                    all_embeddings.extend(reshaped_data)
+                        # Data is flat, reshape it
+                        shape = data.get("result", {}).get("shape", [])
+                        default_dim = 1024 if "bge-m3" in settings.CLOUDFLARE_EMBEDDING_MODEL.lower() else 768
+                        if len(shape) >= 2:
+                            dim = shape[1]
+                        else:
+                            dim = len(data_result) // len(batch) if len(batch) > 0 else default_dim
+                        
+                        if dim <= 0:
+                            dim = default_dim
+                        
+                        reshaped_data = [data_result[j:j+dim] for j in range(0, len(data_result), dim)]
+                        all_embeddings.extend(reshaped_data)
+                else:
+                    # Fallback: Process items individually for this batch if batching returned 400 or failed
+                    print(f"⚠️ Batch of {len(batch)} items failed on Cloudflare AI. Falling back to single-item encoding...", flush=True)
+                    for single_text in batch:
+                        try:
+                            single_emb = self.encode_query(single_text)
+                            all_embeddings.append(single_emb)
+                        except Exception as single_err:
+                            print(f"❌ Single-item encoding failed: {single_err}", flush=True)
+
         return all_embeddings
 
     def encode_query(self, query: str) -> List[float]:
+        clean_query = query.strip() if query and query.strip() else " "
         with httpx.Client() as client:
-            max_retries = 5
+            max_retries = 3
             for attempt in range(max_retries):
                 try:
                     response = client.post(
                         self._get_url(),
                         headers=_get_cf_headers(),
-                        json={"text": [query]},
+                        json={"text": clean_query},
                         timeout=15.0
                     )
                     if response.status_code == 429:
                         wait_time = 2 ** attempt
-                        print(f"⚠️ Cloudflare rate limit hit (429) for query. Retrying in {wait_time}s...")
+                        print(f"⚠️ Cloudflare rate limit hit (429) for query. Retrying in {wait_time}s...", flush=True)
                         time.sleep(wait_time)
                         continue
-                    response.raise_for_status()
+                    
+                    if not response.is_success:
+                        print(f"❌ Cloudflare Query Embedding Error ({response.status_code}): {response.text}", flush=True)
+                        response.raise_for_status()
+                    
                     break
                 except (httpx.HTTPError, Exception) as e:
                     if attempt == max_retries - 1:
                         raise e
-                    wait_time = 2 ** attempt
-                    print(f"⚠️ Cloudflare query embedding failed ({e}). Retrying in {wait_time}s...")
-                    time.sleep(wait_time)
+                    time.sleep(1)
             
             data = response.json()
             data_result = data.get("result", {}).get("data", [])
