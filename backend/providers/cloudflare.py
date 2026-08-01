@@ -302,12 +302,14 @@ class CloudflareLLMProvider(BaseLLMProvider):
         payload = {
             "messages": self._build_messages(prompt),
             "stream": True,
-            "max_tokens": 2048
+            "max_tokens": 1024,
+            "temperature": 0.1,
         }
         
         print(f"🤖 [CLOUDFLARE LLM] Model: {settings.CLOUDFLARE_LLM_MODEL} | Prompt length: {len(prompt)} chars (~{len(prompt) // 4} tokens)", flush=True)
         
         total_output_chars = 0
+        accumulated_text = ""
         async with httpx.AsyncClient() as client:
             try:
                 async with client.stream("POST", url, headers=_get_cf_headers(), json=payload, timeout=60.0) as response:
@@ -325,7 +327,18 @@ class CloudflareLLMProvider(BaseLLMProvider):
                                 data = json.loads(data_str)
                                 if "response" in data:
                                     text = str(data["response"])
+                                    accumulated_text += text
                                     total_output_chars += len(text)
+                                    
+                                    # Repetition detection: check every 200 chars
+                                    if len(accumulated_text) > 400 and len(accumulated_text) % 50 < len(text):
+                                        # Check if the last 200 chars repeat earlier in the output
+                                        tail = accumulated_text[-200:]
+                                        earlier = accumulated_text[:-200]
+                                        if tail in earlier:
+                                            print(f"⚠️ [LOOP DETECTED] Output repeating at {len(accumulated_text)} chars. Truncating.", flush=True)
+                                            break
+                                    
                                     yield text
                             except json.JSONDecodeError:
                                 pass
@@ -345,7 +358,8 @@ class CloudflareLLMProvider(BaseLLMProvider):
         payload = {
             "messages": self._build_messages(prompt),
             "stream": False,
-            "max_tokens": 2048
+            "max_tokens": 1024,
+            "temperature": 0.1,
         }
         with httpx.Client() as client:
             response = client.post(url, headers=_get_cf_headers(), json=payload)
