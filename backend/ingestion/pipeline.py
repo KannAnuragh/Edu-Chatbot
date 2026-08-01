@@ -26,8 +26,8 @@ def clean_indic_text(text: str) -> str:
     # 1. Remove line-break hyphens splitting Indic words
     text = re.sub(f'({INDIC_RANGE})-\\s*({INDIC_RANGE})', r'\1\2', text)
 
-    # 2. Strip invisible formatting artifacts (zero-width joiners/spaces)
-    text = re.sub(r'[\u200B-\u200D\uFEFF]', '', text)
+    # 2. Strip invisible formatting artifacts (zero-width joiners/spaces) and control characters
+    text = re.sub(r'[\u200B-\u200D\uFEFF\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
 
     # 3. Collapse multiple whitespaces/newlines into single spaces
     text = re.sub(r'\s+', ' ', text).strip()
@@ -104,17 +104,31 @@ def run_ingestion_pipeline(
     t5 = time.time()
     print(f"⏱️ [Pipeline] Embedding {len(chunks)} chunks took {t5 - t4:.2f} seconds.")
     
+    # Filter out chunks that failed to embed (where embedding is None)
+    valid_chunks = []
+    valid_embeddings = []
+    for c, emb in zip(chunks, embeddings):
+        if emb is not None:
+            valid_chunks.append(c)
+            valid_embeddings.append(emb)
+        else:
+            print(f"⚠️ [Pipeline] Dropping chunk {c.get('page_number')} due to failed embedding on Cloudflare.", flush=True)
+            
     # 5. Store in Vector DB
     t6 = time.time()
-    vector_db = get_vector_db_client()
-    vector_db.upsert_chunks(
-        user_id=user_id,
-        course_id=course_id,
-        document_id=document_id,
-        filename=filename,
-        chunks=chunks,
-        embeddings=embeddings
-    )
+    if valid_chunks:
+        vector_db = get_vector_db_client()
+        vector_db.upsert_chunks(
+            user_id=user_id,
+            course_id=course_id,
+            document_id=document_id,
+            filename=filename,
+            chunks=valid_chunks,
+            embeddings=valid_embeddings
+        )
+    else:
+        print(f"⚠️ [Pipeline] No valid chunks remaining to upsert for {filename}.", flush=True)
+        
     t7 = time.time()
     print(f"⏱️ [Pipeline] Vector DB upsert took {t7 - t6:.2f} seconds.")
     

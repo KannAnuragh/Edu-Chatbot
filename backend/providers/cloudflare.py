@@ -29,16 +29,31 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
         return f"https://api.cloudflare.com/client/v4/accounts/{settings.CLOUDFLARE_ACCOUNT_ID}/ai/run/{settings.CLOUDFLARE_EMBEDDING_MODEL}"
 
     def encode(self, texts: List[str], batch_size: int = 5) -> List[List[float]]:
-        all_embeddings = []
-        # Filter out empty or whitespace-only strings
-        valid_texts = [t for t in texts if t and str(t).strip()]
-        if not valid_texts:
-            return []
+        # Pre-allocate results array to guarantee 1:1 mapping with input texts
+        results = [None] * len(texts)
+        
+        # Build batches of valid indices and texts
+        batches = []
+        current_batch_indices = []
+        current_batch_texts = []
+        
+        for idx, text in enumerate(texts):
+            if text and str(text).strip():
+                current_batch_indices.append(idx)
+                current_batch_texts.append(text)
+                
+                if len(current_batch_texts) == batch_size:
+                    batches.append((current_batch_indices, current_batch_texts))
+                    current_batch_indices = []
+                    current_batch_texts = []
+                    
+        if current_batch_texts:
+            batches.append((current_batch_indices, current_batch_texts))
+
+        default_dim = 1024 if "bge-m3" in settings.CLOUDFLARE_EMBEDDING_MODEL.lower() else 768
 
         with httpx.Client() as client:
-            for i in range(0, len(valid_texts), batch_size):
-                batch = valid_texts[i:i+batch_size]
-                
+            for indices, batch in batches:
                 response = None
                 max_retries = 3
                 success = False
@@ -59,8 +74,8 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
 
                         if not response.is_success:
                             print(f"❌ Cloudflare Embedding Error ({response.status_code}): {response.text}", flush=True)
-                            if response.status_code == 400:
-                                # Non-retryable 400 Bad Request — break retry loop to trigger single-item fallback
+                            if response.status_code in [400, 500]:
+                                # Non-retryable 400 or 500 — break retry loop to trigger single-item fallback
                                 break
                             response.raise_for_status()
 
@@ -76,33 +91,32 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
                     data = response.json()
                     data_result = data.get("result", {}).get("data", [])
                     if len(data_result) > 0 and isinstance(data_result[0], list):
-                        # Data is already 2D (list of list of floats)
-                        all_embeddings.extend(data_result)
+                        for j, emb in enumerate(data_result):
+                            if j < len(indices):
+                                results[indices[j]] = emb
                     else:
                         # Data is flat, reshape it
                         shape = data.get("result", {}).get("shape", [])
-                        default_dim = 1024 if "bge-m3" in settings.CLOUDFLARE_EMBEDDING_MODEL.lower() else 768
-                        if len(shape) >= 2:
-                            dim = shape[1]
-                        else:
-                            dim = len(data_result) // len(batch) if len(batch) > 0 else default_dim
-                        
+                        dim = shape[1] if len(shape) >= 2 else (len(data_result) // len(batch) if len(batch) > 0 else default_dim)
                         if dim <= 0:
                             dim = default_dim
                         
-                        reshaped_data = [data_result[j:j+dim] for j in range(0, len(data_result), dim)]
-                        all_embeddings.extend(reshaped_data)
+                        for j in range(len(batch)):
+                            start = j * dim
+                            if start + dim <= len(data_result) and j < len(indices):
+                                results[indices[j]] = data_result[start:start+dim]
                 else:
-                    # Fallback: Process items individually for this batch if batching returned 400 or failed
+                    # Fallback: Process items individually for this batch if batching returned 400/500 or failed
                     print(f"⚠️ Batch of {len(batch)} items failed on Cloudflare AI. Falling back to single-item encoding...", flush=True)
-                    for single_text in batch:
+                    for j, single_text in enumerate(batch):
                         try:
                             single_emb = self.encode_query(single_text)
-                            all_embeddings.append(single_emb)
+                            results[indices[j]] = single_emb
                         except Exception as single_err:
-                            print(f"❌ Single-item encoding failed: {single_err}", flush=True)
+                            print(f"❌ Single-item encoding failed for index {indices[j]}: {single_err}", flush=True)
+                            # Leaves it as None in the results array
 
-        return all_embeddings
+        return results
 
     def encode_query(self, query: str) -> List[float]:
         clean_query = query.strip() if query and query.strip() else " "
