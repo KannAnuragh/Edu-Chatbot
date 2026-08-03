@@ -36,25 +36,33 @@ export const getBadgeGradient = (color?: string) => {
 };
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, loading: authLoading } = useAuth();
   const router = useRouter();
   const isAdmin = user?.role === "admin";
+  const isStudent = user?.role === "student";
 
   const [courses, setCourses] = useState<Project[]>([]);
   const [globalStats, setGlobalStats] = useState<GlobalStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
-  }, [isAdmin]);
+    if (!authLoading) {
+      loadData();
+    }
+  }, [authLoading, isAdmin, isStudent]);
 
   const loadData = async () => {
+    setLoading(true);
     try {
+      // If student, fetch their specific enrolled courses (which returns the mock data and progress)
+      // If admin, fetch all courses. If not logged in, fetch public courses.
+      const coursesPromise = isStudent ? api.getEnrolledCourses() : api.getCourses();
+      
       const [coursesData, statsData] = await Promise.all([
-        api.getCourses(),
+        coursesPromise,
         isAdmin ? api.getGlobalStats() : Promise.resolve(null),
       ]);
-      setCourses(coursesData.courses || []);
+      setCourses(coursesData?.courses || []);
       if (statsData) setGlobalStats(statsData);
     } catch (error) {
       console.error("Failed to load dashboard data", error);
