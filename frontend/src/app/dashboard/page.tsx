@@ -54,9 +54,15 @@ export default function DashboardPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // If student, fetch their specific enrolled courses (which returns the mock data and progress)
-      // If admin, fetch all courses. If not logged in, fetch public courses.
-      const coursesPromise = isStudent ? api.getEnrolledCourses() : api.getCourses();
+      let coursesPromise;
+      if (isStudent) {
+        coursesPromise = api.getEnrolledCourses();
+      } else if (isAdmin) {
+        coursesPromise = api.getCourses();
+      } else {
+        // Unauthenticated visitor -> empty courses
+        coursesPromise = Promise.resolve({ courses: [], total: 0 });
+      }
       
       const [coursesData, statsData] = await Promise.all([
         coursesPromise,
