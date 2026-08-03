@@ -21,6 +21,7 @@ from schemas.auth import (
     TokenResponse,
     UserResponse,
     DirectLoginRequest,
+    ExchangeTicketResponse,
 )
 from core.config import settings
 from auth.jwt import create_student_token
