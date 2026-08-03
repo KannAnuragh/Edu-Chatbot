@@ -24,6 +24,26 @@ def create_access_token(user_id: UUID, email: str) -> str:
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
+def create_student_token(
+    student_name: str,
+    student_external_id: str,
+    org_id: str,
+    enrolled_course_ids: list[str],
+) -> str:
+    """Create a 180-day JWT for a student."""
+    expire = datetime.now(timezone.utc) + timedelta(days=settings.STUDENT_JWT_EXPIRATION_DAYS)
+    payload = {
+        "sub": student_external_id,
+        "name": student_name,
+        "org_id": org_id,
+        "role": "student",
+        "enrolled_courses": enrolled_course_ids,
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+    }
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
 def decode_access_token(token: str) -> Optional[dict]:
     """Decode and validate a JWT token. Returns the payload or None."""
     try:

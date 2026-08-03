@@ -65,6 +65,13 @@ export class ApiClient {
     return this.request("/auth/me");
   }
 
+  async exchangeTicket(ticket: string) {
+    return this.request("/auth/exchange-ticket", {
+        method: "POST",
+        body: JSON.stringify({ ticket }),
+    });
+  }
+
   // --- Courses / Projects ---
   async getCourses() {
     return this.request("/courses");

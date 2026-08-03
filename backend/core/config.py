@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_MINUTES: int = 1440  # 24 hours
 
+    # --- SSO Tickets ---
+    TICKET_EXPIRATION_SECONDS: int = 30
+    STUDENT_JWT_EXPIRATION_DAYS: int = 180
+    SSO_API_KEY: str = "super-secret-api-key-for-mobile-app"
+
     # --- Providers ---
     LLM_PROVIDER: str = "gemini" # gemini | cloudflare
     EMBEDDING_PROVIDER: str = "local" # local | cloudflare

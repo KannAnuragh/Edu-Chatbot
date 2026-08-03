@@ -9,6 +9,7 @@ from models.course import Course
 from models.document import Document, DocumentStatus
 from models.conversation import Conversation, Message, MessageRole
 from models.enrollment import Enrollment
+from models.sso_ticket import SSOTicket
 
 __all__ = [
     "User",
@@ -20,4 +21,5 @@ __all__ = [
     "Message",
     "MessageRole",
     "Enrollment",
+    "SSOTicket",
 ]

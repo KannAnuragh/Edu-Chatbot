@@ -24,7 +24,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const initAuth = async () => {
-      const token = localStorage.getItem("aca_token");
+      let token = localStorage.getItem("aca_token");
+
+      // Check if there is an SSO ticket in the URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const ticket = urlParams.get("ticket");
+
+      if (ticket) {
+        try {
+          const res = await api.exchangeTicket(ticket);
+          token = res.access_token;
+          localStorage.setItem("aca_token", token as string);
+
+          // Strip the ticket from the URL without reloading the page
+          const newUrl = window.location.pathname + window.location.search.replace(new RegExp(`[?&]ticket=${ticket}`), '').replace(/^&/, '?');
+          window.history.replaceState({}, document.title, newUrl || window.location.pathname);
+        } catch (error) {
+          console.error("SSO Ticket Exchange failed:", error);
+        }
+      }
+
       if (token) {
         try {
           const userData = await api.getMe();

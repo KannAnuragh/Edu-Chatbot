@@ -29,6 +29,11 @@ async def chat_with_course(
     current_user: Optional[User] = Depends(get_optional_user),
 ):
     """Stream chat response using Gemini and RAG."""
+    # Check if student has access
+    if current_user and current_user.role == "student":
+        if str(course_id) not in getattr(current_user, "enrolled_course_ids", []):
+            raise HTTPException(status_code=403, detail="Not enrolled in this course")
+            
     from services.chat_service import ChatService
     
     chat_service = ChatService()
@@ -51,6 +56,10 @@ async def list_conversations(
     current_user: User = Depends(get_current_user),
 ):
     """List user's conversations for a course."""
+    if current_user.role == "student":
+        if str(course_id) not in getattr(current_user, "enrolled_course_ids", []):
+            raise HTTPException(status_code=403, detail="Not enrolled in this course")
+            
     result = await db.execute(
         select(Conversation)
         .where(
@@ -75,6 +84,10 @@ async def get_conversation(
     current_user: User = Depends(get_current_user),
 ):
     """Get a specific conversation with all its messages."""
+    if current_user.role == "student":
+        if str(course_id) not in getattr(current_user, "enrolled_course_ids", []):
+            raise HTTPException(status_code=403, detail="Not enrolled in this course")
+            
     from sqlalchemy.orm import selectinload
     
     result = await db.execute(
@@ -102,6 +115,10 @@ async def delete_conversation(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a conversation."""
+    if current_user.role == "student":
+        if str(course_id) not in getattr(current_user, "enrolled_course_ids", []):
+            raise HTTPException(status_code=403, detail="Not enrolled in this course")
+            
     result = await db.execute(
         select(Conversation)
         .where(

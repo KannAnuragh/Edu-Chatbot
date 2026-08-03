@@ -174,6 +174,13 @@ async def startup_event():
             except Exception as e:
                 print(f"Schema alter for conversation user_id failed: {e}")
 
+            try:
+                # Cleanup expired tickets on startup
+                async with engine.begin() as conn:
+                    await conn.execute(text("DELETE FROM sso_tickets WHERE expires_at < NOW() OR is_used = TRUE"))
+            except Exception as e:
+                print(f"Failed to cleanup expired SSO tickets: {e}")
+
             print("Database successfully initialized during startup.")
             break
         except Exception as e:

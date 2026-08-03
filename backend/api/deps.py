@@ -42,8 +42,28 @@ async def get_optional_user(
     if not user_id:
         return None
         
-    result = await db.execute(select(User).where(User.id == UUID(user_id)))
-    return result.scalar_one_or_none()
+    role = payload.get("role")
+    if role == "student":
+        # Students aren't in the DB; construct an ephemeral User object
+        # Generate a deterministic UUID based on their external ID so their chats are grouped correctly
+        import uuid
+        from models.user import UserRole
+        student_uuid = uuid.uuid5(uuid.NAMESPACE_OID, user_id)
+        student_user = User(
+            id=student_uuid,
+            name=payload.get("name", "Student"),
+            email=f"{user_id}@student.sso",
+            role=UserRole.STUDENT
+        )
+        # Attach the enrolled courses array directly to the object for quick RBAC checks
+        student_user.enrolled_course_ids = payload.get("enrolled_courses", [])
+        return student_user
+        
+    try:
+        result = await db.execute(select(User).where(User.id == UUID(user_id)))
+        return result.scalar_one_or_none()
+    except ValueError:
+        return None
 
 
 async def get_current_user(
