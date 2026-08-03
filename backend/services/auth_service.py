@@ -93,23 +93,23 @@ async def init_mock_courses(db: AsyncSession):
     
     id_mapping = {}
 
-    # Map first course to "course-2"
+    # Map first course to "social-science"
     if len(existing_courses) > 0:
-        id_mapping["course-2"] = str(existing_courses[0].id)
+        id_mapping["social-science"] = str(existing_courses[0].id)
     else:
-        c1 = Course(title="Course 2", description="A new learning course", created_by=admin.id)
+        c1 = Course(title="Social Science", description="A new learning course", created_by=admin.id)
         db.add(c1)
         await db.flush()
-        id_mapping["course-2"] = str(c1.id)
+        id_mapping["social-science"] = str(c1.id)
         
-    # Map second course to "social-science"
+    # Map second course to "course-2" (now Economics)
     if len(existing_courses) > 1:
-        id_mapping["social-science"] = str(existing_courses[1].id)
+        id_mapping["course-2"] = str(existing_courses[1].id)
     else:
-        c2 = Course(title="Social Science", description="A new learning course", created_by=admin.id)
+        c2 = Course(title="Course 2", description="A new learning course", created_by=admin.id)
         db.add(c2)
         await db.flush()
-        id_mapping["social-science"] = str(c2.id)
+        id_mapping["course-2"] = str(c2.id)
         
     await db.commit()
 
