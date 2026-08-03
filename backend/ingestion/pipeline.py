@@ -26,8 +26,9 @@ def clean_indic_text(text: str) -> str:
     # 1. Remove line-break hyphens splitting Indic words
     text = re.sub(f'({INDIC_RANGE})-\\s*({INDIC_RANGE})', r'\1\2', text)
 
-    # 2. Strip invisible formatting artifacts (zero-width joiners/spaces) and control characters
-    text = re.sub(r'[\u200B-\u200D\uFEFF\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
+    # 2. Strip invisible formatting artifacts (zero-width spaces) and control characters
+    # NOTE: We MUST NOT strip \u200C (ZWNJ) and \u200D (ZWJ) because Malayalam and other Indic languages rely on them for conjuncts and chillu characters.
+    text = re.sub(r'[\u200B\uFEFF\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
 
     # 3. Collapse multiple whitespaces/newlines into single spaces
     text = re.sub(r'\s+', ' ', text).strip()
