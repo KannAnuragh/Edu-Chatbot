@@ -77,10 +77,23 @@ async def list_enrolled_courses(
         student_id = current_user.email.split("@")[0]
         profile = STUDENT_PROFILES.get(student_id)
         if profile:
+            # Sync the mock courses with live DB titles
+            live_courses = []
+            for mock_course in profile["courses"]:
+                c_id = mock_course.get("id")
+                # Try to fetch actual course to get latest title/description
+                actual = await db.execute(select(Course).where(Course.id == c_id))
+                actual_course = actual.scalar_one_or_none()
+                if actual_course:
+                    mock_course["title"] = actual_course.title
+                    mock_course["description"] = actual_course.description
+                    mock_course["badge_color"] = getattr(actual_course, "badge_color", "emerald")
+                live_courses.append(mock_course)
+                
             return JSONResponse({
-                "courses": profile["courses"],
+                "courses": live_courses,
                 "history": profile["history"],
-                "total": len(profile["courses"])
+                "total": len(live_courses)
             })
             
     query = (

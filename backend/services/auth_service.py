@@ -88,31 +88,36 @@ async def init_mock_courses(db: AsyncSession):
         print("Warning: Admin user not found, skipping mock course init.")
         return
 
-    titles_to_ids = {
-        "Course 2": "course-2",
-        "Social Science": "social-science"
-    }
+    query = await db.execute(select(Course).order_by(Course.created_at.asc()))
+    existing_courses = query.scalars().all()
     
     id_mapping = {}
 
-    for title, mock_id in titles_to_ids.items():
-        # Check if course exists
-        query = await db.execute(select(Course).where(Course.title == title))
-        course = query.scalar_one_or_none()
+    # Map first course to "course-2"
+    if len(existing_courses) > 0:
+        id_mapping["course-2"] = str(existing_courses[0].id)
+    else:
+        c1 = Course(title="Course 2", description="A new learning course", created_by=admin.id)
+        db.add(c1)
+        await db.flush()
+        id_mapping["course-2"] = str(c1.id)
         
-        if not course:
-            course = Course(title=title, description="A new learning course", created_by=admin.id)
-            db.add(course)
-            await db.flush()
-            
-        id_mapping[mock_id] = str(course.id)
+    # Map second course to "social-science"
+    if len(existing_courses) > 1:
+        id_mapping["social-science"] = str(existing_courses[1].id)
+    else:
+        c2 = Course(title="Social Science", description="A new learning course", created_by=admin.id)
+        db.add(c2)
+        await db.flush()
+        id_mapping["social-science"] = str(c2.id)
         
     await db.commit()
 
     # Patch the STUDENT_PROFILES with actual UUIDs
     for uid, profile in STUDENT_PROFILES.items():
         for course_dict in profile.get("courses", []):
-            old_id = course_dict["id"]
-            if old_id in id_mapping:
-                course_dict["id"] = id_mapping[old_id]
-                course_dict["mock_id"] = old_id  # keep old ID for reference if needed
+            # Prefer mock_id if it exists (for hot reloads), otherwise fallback to id
+            mock_id = course_dict.get("mock_id", course_dict["id"])
+            if mock_id in id_mapping:
+                course_dict["id"] = id_mapping[mock_id]
+                course_dict["mock_id"] = mock_id  # keep old ID for reference
