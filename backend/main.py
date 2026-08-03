@@ -171,6 +171,7 @@ async def startup_event():
             try:
                 async with engine.begin() as conn:
                     await conn.execute(text("ALTER TABLE conversations ALTER COLUMN user_id DROP NOT NULL"))
+                    await conn.execute(text("ALTER TABLE conversations DROP CONSTRAINT IF EXISTS conversations_user_id_fkey"))
             except Exception as e:
                 print(f"Schema alter for conversation user_id failed: {e}")
 
