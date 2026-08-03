@@ -48,12 +48,14 @@ async def get_optional_user(
         # Generate a deterministic UUID based on their external ID so their chats are grouped correctly
         import uuid
         from models.user import UserRole
+        from datetime import datetime, timezone
         student_uuid = uuid.uuid5(uuid.NAMESPACE_OID, user_id)
         student_user = User(
             id=student_uuid,
             name=payload.get("name", "Student"),
             email=f"{user_id}@student.sso",
-            role=UserRole.STUDENT
+            role=UserRole.STUDENT,
+            created_at=datetime.now(timezone.utc)
         )
         # Attach the enrolled courses array directly to the object for quick RBAC checks
         student_user.enrolled_course_ids = payload.get("enrolled_courses", [])
