@@ -64,3 +64,9 @@ class ExchangeTicketResponse(BaseModel):
     token_type: str = "bearer"
     student_name: str
     org_id: str
+
+
+class DirectLoginRequest(BaseModel):
+    """Payload to exchange api_key and student_id for a JWT."""
+    api_key: str
+    student_id: str

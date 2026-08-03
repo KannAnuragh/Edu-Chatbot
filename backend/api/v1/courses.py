@@ -65,12 +65,24 @@ async def list_courses(
     return CourseListResponse(courses=responses, total=total)
 
 
-@router.get("/enrolled", response_model=CourseListResponse)
+@router.get("/enrolled")
 async def list_enrolled_courses(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """List courses the current user is enrolled in."""
+    if current_user.role == "student":
+        from fastapi.responses import JSONResponse
+        from services.auth_service import STUDENT_PROFILES
+        student_id = current_user.email.split("@")[0]
+        profile = STUDENT_PROFILES.get(student_id)
+        if profile:
+            return JSONResponse({
+                "courses": profile["courses"],
+                "history": profile["history"],
+                "total": len(profile["courses"])
+            })
+            
     query = (
         select(Course)
         .join(Enrollment, Enrollment.course_id == Course.id)

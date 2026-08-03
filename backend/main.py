@@ -175,11 +175,13 @@ async def startup_event():
                 print(f"Schema alter for conversation user_id failed: {e}")
 
             try:
-                # Cleanup expired tickets on startup
-                async with engine.begin() as conn:
-                    await conn.execute(text("DELETE FROM sso_tickets WHERE expires_at < NOW() OR is_used = TRUE"))
+                # Initialize mock courses and map their UUIDs
+                from services.auth_service import init_mock_courses
+                from core.database import async_session_factory
+                async with async_session_factory() as session:
+                    await init_mock_courses(session)
             except Exception as e:
-                print(f"Failed to cleanup expired SSO tickets: {e}")
+                print(f"Failed to initialize mock courses: {e}")
 
             print("Database successfully initialized during startup.")
             break

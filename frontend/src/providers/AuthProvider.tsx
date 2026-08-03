@@ -26,21 +26,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const initAuth = async () => {
       let token = localStorage.getItem("aca_token");
 
-      // Check if there is an SSO ticket in the URL
+      // Check if there is an api_key and student_id in the URL
       const urlParams = new URLSearchParams(window.location.search);
-      const ticket = urlParams.get("ticket");
+      const apiKey = urlParams.get("api_key");
+      const studentId = urlParams.get("student_id");
 
-      if (ticket) {
+      if (apiKey && studentId) {
         try {
-          const res = await api.exchangeTicket(ticket);
+          const res = await api.directLogin(apiKey, studentId);
           token = res.access_token;
           localStorage.setItem("aca_token", token as string);
 
-          // Strip the ticket from the URL without reloading the page
-          const newUrl = window.location.pathname + window.location.search.replace(new RegExp(`[?&]ticket=${ticket}`), '').replace(/^&/, '?');
+          // Strip the credentials from the URL without reloading the page
+          const newUrl = window.location.pathname + window.location.search
+            .replace(new RegExp(`[?&]api_key=${apiKey}`), '')
+            .replace(new RegExp(`[?&]student_id=${studentId}`), '')
+            .replace(/^&/, '?');
           window.history.replaceState({}, document.title, newUrl || window.location.pathname);
         } catch (error) {
-          console.error("SSO Ticket Exchange failed:", error);
+          console.error("Direct Login failed:", error);
         }
       }
 

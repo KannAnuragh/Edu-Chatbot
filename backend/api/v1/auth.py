@@ -20,10 +20,7 @@ from schemas.auth import (
     UserLoginRequest,
     TokenResponse,
     UserResponse,
-    GenerateTicketRequest,
-    GenerateTicketResponse,
-    ExchangeTicketRequest,
-    ExchangeTicketResponse,
+    DirectLoginRequest,
 )
 from core.config import settings
 from auth.jwt import create_student_token
@@ -66,80 +63,47 @@ async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
-@router.post("/generate-ticket", response_model=GenerateTicketResponse, status_code=status.HTTP_201_CREATED)
-async def generate_ticket(
-    request: GenerateTicketRequest, 
-    x_api_key: str = Depends(lambda req: req.headers.get("X-API-Key")),
-    db: AsyncSession = Depends(get_db)
-):
-    """Generate a short-lived SSO ticket for mobile-to-web handoff."""
-    from fastapi import Request
+@router.post("/direct-login", response_model=ExchangeTicketResponse)
+async def direct_login(request: DirectLoginRequest):
+    """Direct login via API key and student ID."""
+    from services.auth_service import ORG_API_KEYS, STUDENT_PROFILES
     
-    if not x_api_key or x_api_key != settings.SSO_API_KEY:
+    # Validate API key
+    org = ORG_API_KEYS.get(request.api_key)
+    if not org:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or missing X-API-Key header",
+            detail="Invalid API key",
         )
         
-    ticket_str = f"tkt_{secrets.token_hex(16)}"
-    expires_at = datetime.utcnow() + timedelta(seconds=settings.TICKET_EXPIRATION_SECONDS)
-    
-    ticket = SSOTicket(
-        ticket=ticket_str,
-        student_name=request.student_name,
-        student_external_id=request.student_external_id,
-        org_id=request.org_id,
-        enrolled_course_ids=request.enrolled_course_ids,
-        expires_at=expires_at
-    )
-    
-    db.add(ticket)
-    await db.commit()
-    
-    return GenerateTicketResponse(
-        ticket=ticket_str,
-        expires_in_seconds=settings.TICKET_EXPIRATION_SECONDS
-    )
-
-
-@router.post("/exchange-ticket", response_model=ExchangeTicketResponse)
-async def exchange_ticket(request: ExchangeTicketRequest, db: AsyncSession = Depends(get_db)):
-    """Exchange a short-lived SSO ticket for a long-lived JWT."""
-    result = await db.execute(select(SSOTicket).where(SSOTicket.ticket == request.ticket))
-    ticket = result.scalar_one_or_none()
-    
-    if not ticket:
+    # Validate student persona
+    student = STUDENT_PROFILES.get(request.student_id)
+    if not student:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid ticket",
+            detail="Student profile not found",
         )
         
-    if ticket.is_used:
+    # Check if student belongs to the organization that owns the key
+    if student.get("allowed_key") != request.api_key:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Ticket has already been used",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this student profile",
         )
         
-    if ticket.expires_at < datetime.utcnow():
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Ticket has expired",
-        )
-        
-    # Burn the ticket
-    ticket.is_used = True
-    await db.commit()
+    # Extract enrolled courses
+    enrolled_course_ids = [c["id"] for c in student.get("courses", [])]
     
     # Generate the long-lived JWT
     access_token = create_student_token(
-        student_name=ticket.student_name,
-        student_external_id=ticket.student_external_id,
-        org_id=ticket.org_id,
-        enrolled_course_ids=ticket.enrolled_course_ids
+        student_name=student["name"],
+        student_external_id=request.student_id,
+        org_id=student["org_id"],
+        enrolled_course_ids=enrolled_course_ids
     )
     
     return ExchangeTicketResponse(
         access_token=access_token,
-        student_name=ticket.student_name,
-        org_id=ticket.org_id
+        student_name=student["name"],
+        org_id=student["org_id"]
     )

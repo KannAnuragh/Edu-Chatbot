@@ -65,10 +65,10 @@ export class ApiClient {
     return this.request("/auth/me");
   }
 
-  async exchangeTicket(ticket: string) {
-    return this.request("/auth/exchange-ticket", {
+  async directLogin(apiKey: string, studentId: string) {
+    return this.request("/auth/direct-login", {
         method: "POST",
-        body: JSON.stringify({ ticket }),
+        body: JSON.stringify({ api_key: apiKey, student_id: studentId }),
     });
   }
 
