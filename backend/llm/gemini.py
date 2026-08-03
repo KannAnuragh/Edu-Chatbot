@@ -55,7 +55,9 @@ class GeminiClient:
         """Get standard generation config."""
         return types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,
-            temperature=0.2, # Low temperature for more factual responses
+            temperature=0.4, # Slightly higher to prevent looping
+            presence_penalty=0.3, # Break repetition
+            frequency_penalty=0.3, # Discourage looping words
             max_output_tokens=2048,
         )
 

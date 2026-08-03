@@ -81,13 +81,34 @@ class ChatService:
                 # Send conversation ID to client immediately
                 yield f"event: meta\ndata: {json.dumps({'conversation_id': str(conversation_id)})}\n\n"
 
-                # 3. Retrieve relevant chunks
+                # 2.5. Optimize Search Query
+                yield f"event: status\ndata: {json.dumps({'message': 'Optimizing search query...'})}\n\n"
+                
+                t_opt_start = time.time()
+                from llm.prompts import QUERY_OPTIMIZATION_PROMPT
+                history_str = ""
+                if history:
+                    for msg in history[-6:]:
+                        role = "Student" if msg.role == MessageRole.USER else "Assistant"
+                        history_str += f"{role}: {msg.content}\n"
+                
+                opt_prompt = QUERY_OPTIMIZATION_PROMPT.format(history=history_str, query=message_text)
+                
+                # Run synchronous generation in a thread so we don't block the async event loop
+                optimized_query = await asyncio.to_thread(llm_client.generate_response, opt_prompt)
+                optimized_query = optimized_query.strip()
+                t_opt_end = time.time()
+                print(f"⏱️ [QUERY OPTIMIZATION] Took {t_opt_end - t_opt_start:.2f}s | Original: '{message_text}' | Optimized: '{optimized_query}'", flush=True)
+
+                yield f"event: status\ndata: {json.dumps({'message': 'Searching documents...'})}\n\n"
+
+                # 3. Retrieve relevant chunks using the optimized query
                 t_retrieval_start = time.time()
                 raw_chunks = await self.retrieval.retrieve_relevant_chunks(
                     user_id=str(user_id) if user_id else None,
                     course_id=str(course_id),
-                    query=message_text,
-                    top_k=10  # Fetch more, then filter by relevance
+                    query=optimized_query,
+                    top_k=15  # Fetch more, then filter by relevance
                 )
                 t_retrieval_end = time.time()
                 
@@ -113,7 +134,7 @@ class ChatService:
                 
                 # Use relevant chunks (or fall back to top chunks if all are below threshold)
                 if relevant_chunks:
-                    chunks = relevant_chunks[:7]  # Cap at 7 best chunks
+                    chunks = relevant_chunks[:10]  # Cap at 10 best chunks
                 elif course_filtered_chunks:
                     # All chunks scored below threshold — use top 3 as fallback but warn
                     chunks = course_filtered_chunks[:3]
@@ -128,7 +149,7 @@ class ChatService:
                 # DETAILED LOGGING FOR RENDER CLI / BACKEND LOGS
                 # ═══════════════════════════════════════════════════════════
                 print("\n" + "═" * 80, flush=True)
-                print(f"🔍 [RAG RETRIEVAL] Query: '{message_text}'", flush=True)
+                print(f"🔍 [RAG RETRIEVAL] Optimized Query: '{optimized_query}'", flush=True)
                 print(f"   Course ID: {course_id}", flush=True)
                 print(f"   Retrieval time: {t_retrieval_end - t_retrieval_start:.3f}s", flush=True)
                 print(f"   Raw chunks from vector DB: {len(raw_chunks)}", flush=True)

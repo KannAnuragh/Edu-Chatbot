@@ -77,3 +77,18 @@ def build_rag_prompt(
         history=history,
         question=question,
     )
+
+
+QUERY_OPTIMIZATION_PROMPT = """You are a search engine optimization expert. Your task is to convert the user's latest message into a highly effective English search query for a vector database.
+
+RULES:
+1. If the user's message is in Malayalam (or another language), translate the core intent to English keywords.
+2. Ignore conversational filler (e.g., "hi", "can you tell me", "what is").
+3. Extract only the key concepts and entities.
+4. Output ONLY the search query. Do not add quotes, explanations, or any other text.
+
+Conversation Context:
+{history}
+
+User's Latest Message: {query}
+Optimized English Search Query:"""
