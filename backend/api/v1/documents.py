@@ -183,7 +183,6 @@ async def bulk_upload_documents(
 async def list_documents(
     course_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """List all documents for a course."""
     # We should verify course access, but for simplicity, we'll just return the documents
@@ -205,7 +204,6 @@ async def get_document(
     course_id: UUID,
     document_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """Get document details."""
     result = await db.execute(

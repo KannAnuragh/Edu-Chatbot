@@ -7,7 +7,6 @@ from core.config import settings
 from models.user import User, UserRole
 from models.course import Course
 from models.document import Document
-from models.enrollment import Enrollment
 from models.conversation import Conversation, Message
 from auth.hashing import hash_password
 
@@ -35,23 +34,6 @@ async def create_users():
             admin.password_hash = hash_password(settings.DEFAULT_ADMIN_PASSWORD)
             admin.role = UserRole.ADMIN
             print(f"Admin user already exists, updated password and role.")
-
-        # Create Student
-        student_email = "student@example.com"
-        student_query = await session.execute(select(User).where(User.email == student_email))
-        student = student_query.scalar_one_or_none()
-        
-        if not student:
-            student = User(
-                name="Student User",
-                email=student_email,
-                password_hash=hash_password("password123"),
-                role=UserRole.STUDENT
-            )
-            session.add(student)
-            print(f"Created student user: {student_email}")
-        else:
-            print(f"Student user already exists.")
 
         await session.commit()
         print("Done.")

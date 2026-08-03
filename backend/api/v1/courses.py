@@ -48,23 +48,15 @@ async def create_course(
 @router.get("", response_model=CourseListResponse)
 async def list_courses(
     db: AsyncSession = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_user),
     skip: int = 0,
     limit: int = 100,
 ):
-    """List courses. Admins see their created courses, students/guests see all courses."""
-    query = select(Course)
-
-    if current_user and current_user.role == UserRole.ADMIN:
-        query = query.where(Course.created_by == current_user.id)
-
-    query = query.order_by(Course.created_at.desc()).offset(skip).limit(limit)
+    """List courses (Publicly accessible)."""
+    query = select(Course).order_by(Course.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     courses = result.scalars().all()
 
     total_query = select(func.count()).select_from(Course)
-    if current_user and current_user.role == UserRole.ADMIN:
-        total_query = total_query.where(Course.created_by == current_user.id)
     total_result = await db.execute(total_query)
     total = total_result.scalar_one()
 
