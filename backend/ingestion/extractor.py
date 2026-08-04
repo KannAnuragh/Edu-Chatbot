@@ -36,8 +36,8 @@ def _detect_legacy_font(page) -> str:
     Uses both font metadata and content heuristics.
     """
     try:
-        # 1. Metadata check
-        fonts = page.get_fonts(full=True)
+        # 1. Metadata check (full=False prevents expensive font binary parsing)
+        fonts = page.get_fonts(full=False)
         for font_info in fonts:
             basefont = font_info[3] if len(font_info) > 3 else ""
             name = font_info[4] if len(font_info) > 4 else ""

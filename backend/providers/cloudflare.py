@@ -28,7 +28,7 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
     def _get_url(self):
         return f"https://api.cloudflare.com/client/v4/accounts/{settings.CLOUDFLARE_ACCOUNT_ID}/ai/run/{settings.CLOUDFLARE_EMBEDDING_MODEL}"
 
-    def encode(self, texts: List[str], batch_size: int = 5) -> List[List[float]]:
+    def encode(self, texts: List[str], batch_size: int = 25) -> List[List[float]]:
         # Pre-allocate results array to guarantee 1:1 mapping with input texts
         results = [None] * len(texts)
         
