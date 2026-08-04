@@ -7,6 +7,7 @@ Includes relevance filtering, detailed chunk logging, and token usage tracking.
 
 import json
 import time
+import asyncio
 from uuid import UUID
 from typing import AsyncGenerator, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
