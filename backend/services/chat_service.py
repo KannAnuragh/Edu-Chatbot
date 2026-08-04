@@ -84,11 +84,20 @@ class ChatService:
                 # 2.5. Optimize Search Query
                 yield f"event: status\ndata: {json.dumps({'message': 'Optimizing search query...'})}\n\n"
                 
+                # Load history messages for query optimization and building prompt
+                history_result = await db.execute(
+                    select(Message)
+                    .where(Message.conversation_id == conversation_id)
+                    .order_by(Message.created_at.asc())
+                )
+                all_messages = history_result.scalars().all()
+                history_messages = all_messages[:-1] if len(all_messages) > 1 else []
+
                 t_opt_start = time.time()
                 from llm.prompts import QUERY_OPTIMIZATION_PROMPT
                 history_str = ""
-                if history:
-                    for msg in history[-6:]:
+                if history_messages:
+                    for msg in history_messages[-6:]:
                         role = "Student" if msg.role == MessageRole.USER else "Assistant"
                         history_str += f"{role}: {msg.content}\n"
                 
@@ -181,16 +190,10 @@ class ChatService:
                 # Send sources to client (empty list to hide citations)
                 yield f"event: sources\ndata: {json.dumps(sources)}\n\n"
 
-                # 4. Get conversation history
-                result = await db.execute(
-                    select(Message)
-                    .where(Message.conversation_id == conversation_id)
-                    .order_by(Message.created_at.asc())
-                )
-                all_messages = result.scalars().all()
+                # 4. Get conversation history (already loaded above)
                 history = [
                     {"role": msg.role.value, "content": msg.content}
-                    for msg in all_messages[:-1]  # Exclude the current message we just added
+                    for msg in history_messages
                 ]
 
                 # 5. Build prompt
