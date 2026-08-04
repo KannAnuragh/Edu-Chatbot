@@ -73,10 +73,11 @@ async def get_course_stats(
     total_pages = total_pages_result.scalar_one()
 
     # Enrolled students
-    enrolled_result = await db.execute(
-        select(func.count()).select_from(Enrollment).where(Enrollment.course_id == course_id)
+    from services.auth_service import STUDENT_PROFILES
+    enrolled_students = sum(
+        1 for profile in STUDENT_PROFILES.values()
+        if any(str(c.get("id")) == str(course_id) for c in profile.get("courses", []))
     )
-    enrolled_students = enrolled_result.scalar_one()
 
     # Conversation count
     convo_result = await db.execute(

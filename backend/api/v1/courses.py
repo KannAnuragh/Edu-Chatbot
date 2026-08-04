@@ -235,3 +235,80 @@ async def _get_course_response(db: AsyncSession, course_id: UUID) -> CourseRespo
         updated_at=course.updated_at,
         document_count=doc_count
     )
+
+
+@router.get("/{course_id}/students")
+async def get_course_students(
+    course_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(get_current_admin),
+):
+    """List all students and whether they are enrolled in the course."""
+    from services.auth_service import STUDENT_PROFILES
+    
+    # Verify course exists
+    result = await db.execute(select(Course).where(Course.id == course_id))
+    course = result.scalar_one_or_none()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    student_list = []
+    for s_id, profile in STUDENT_PROFILES.items():
+        is_enrolled = any(str(c.get("id")) == str(course_id) for c in profile.get("courses", []))
+        student_list.append({
+            "id": s_id,
+            "name": profile.get("name"),
+            "enrolled": is_enrolled
+        })
+    return student_list
+
+
+@router.post("/{course_id}/students/{student_id}/toggle")
+async def toggle_student_enrollment(
+    course_id: UUID,
+    student_id: str,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(get_current_admin),
+):
+    """Toggle a student's enrollment in a course."""
+    from services.auth_service import STUDENT_PROFILES
+    from datetime import datetime
+    
+    # Verify course exists
+    result = await db.execute(select(Course).where(Course.id == course_id))
+    course = result.scalar_one_or_none()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    profile = STUDENT_PROFILES.get(student_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+
+    courses = profile.get("courses", [])
+    existing_index = next((i for i, c in enumerate(courses) if str(c.get("id")) == str(course_id)), None)
+
+    if existing_index is not None:
+        # Remove course
+        courses.pop(existing_index)
+        enrolled = False
+    else:
+        # Add course
+        # Calculate doc count for this course
+        doc_result = await db.execute(
+            select(func.count()).select_from(Document).where(Document.course_id == course_id)
+        )
+        doc_count = doc_result.scalar_one()
+        
+        courses.append({
+            "id": str(course_id),
+            "title": course.title,
+            "description": course.description or "",
+            "docs": f"{doc_count} docs",
+            "date": datetime.utcnow().strftime("%d/%m/%Y"),
+            "progress": 0
+        })
+        enrolled = True
+
+    profile["courses"] = courses
+    return {"enrolled": enrolled}
+

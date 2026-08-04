@@ -125,6 +125,16 @@ export class ApiClient {
     return this.request(`/stats/course/${courseId}`);
   }
 
+  async getCourseStudents(courseId: string) {
+    return this.request(`/courses/${courseId}/students`);
+  }
+
+  async toggleStudentEnrollment(courseId: string, studentId: string) {
+    return this.request(`/courses/${courseId}/students/${studentId}/toggle`, {
+      method: "POST",
+    });
+  }
+
   async getGlobalStats() {
     return this.request('/stats/global');
   }

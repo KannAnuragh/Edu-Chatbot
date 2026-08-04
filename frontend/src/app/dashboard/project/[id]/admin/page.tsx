@@ -19,6 +19,8 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Layers,
   Trash2,
 } from "lucide-react";
@@ -42,6 +44,15 @@ export default function AdminCoursePage() {
   const [documents, setDocuments] = useState<DocType[]>([]);
   const [stats, setStats] = useState<CourseStats | null>(null);
   const [loading, setLoading] = useState(true);
+
+  interface Student {
+    id: string;
+    name: string;
+    enrolled: boolean;
+  }
+  const [students, setStudents] = useState<Student[]>([]);
+  const [studentsExpanded, setStudentsExpanded] = useState(false);
+  const [togglingStudent, setTogglingStudent] = useState<string | null>(null);
 
   // Sidebar state
   const [sidebarMinimized, setSidebarMinimized] = useState(true);
@@ -80,18 +91,37 @@ export default function AdminCoursePage() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [p, docData, statsData] = await Promise.all([
+      const [p, docData, statsData, studentData] = await Promise.all([
         api.getProject(projectId),
         api.getDocuments(projectId),
         api.getCourseStats(projectId),
+        api.getCourseStudents(projectId),
       ]);
       setProject(p);
       setDocuments(docData.documents);
       setStats(statsData);
+      setStudents(studentData);
     } catch {
       router.push("/dashboard");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleStudent = async (studentId: string) => {
+    setTogglingStudent(studentId);
+    try {
+      const res = await api.toggleStudentEnrollment(projectId, studentId);
+      setStudents((prev) =>
+        prev.map((s) => (s.id === studentId ? { ...s, enrolled: res.enrolled } : s))
+      );
+      // Refresh stats to keep counts up to date
+      const statsData = await api.getCourseStats(projectId);
+      setStats(statsData);
+    } catch {
+      alert("Failed to update student course availability");
+    } finally {
+      setTogglingStudent(null);
     }
   };
 
@@ -431,6 +461,77 @@ export default function AdminCoursePage() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Student Course Availability Section */}
+            <div
+              className="bg-white rounded-2xl border border-border shadow-sm animate-fade-in-up"
+              style={{ animationDelay: "0.05s" }}
+            >
+              <button
+                onClick={() => setStudentsExpanded(!studentsExpanded)}
+                className="w-full text-left p-6 flex items-center justify-between focus:outline-none"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center text-violet-600">
+                    <Users size={20} />
+                  </div>
+                  <div>
+                    <h2 className="font-heading font-semibold text-ink text-lg flex items-center gap-2">
+                      Course Availability & Students
+                      <span className="text-xs font-mono font-medium text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-200">
+                        {students.filter(s => s.enrolled).length} Enrolled
+                      </span>
+                    </h2>
+                    <p className="text-sm text-muted mt-0.5">
+                      Manage which students have access to this course's documents and chatbot.
+                    </p>
+                  </div>
+                </div>
+                <div className="text-muted hover:text-ink transition-colors">
+                  {studentsExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                </div>
+              </button>
+
+              {studentsExpanded && (
+                <div className="px-6 pb-6 border-t border-border pt-6 space-y-4 animate-fade-in">
+                  {students.length === 0 ? (
+                    <p className="text-sm text-muted italic text-center py-4">No student profiles found.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {students.map((student) => (
+                        <div
+                          key={student.id}
+                          className="flex items-center justify-between p-4 rounded-xl border border-border bg-rail/10 hover:bg-rail/20 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-full bg-violet-600/10 text-violet-600 font-bold flex items-center justify-center text-sm">
+                              {student.name.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-ink">{student.name}</p>
+                              <p className="text-xs text-muted font-mono">{student.id}</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleToggleStudent(student.id)}
+                            disabled={togglingStudent === student.id}
+                            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              student.enrolled ? "bg-emerald" : "bg-gray-200"
+                            } ${togglingStudent === student.id ? "opacity-50 cursor-not-allowed" : ""}`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                student.enrolled ? "translate-x-5" : "translate-x-0"
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Documents Section */}
