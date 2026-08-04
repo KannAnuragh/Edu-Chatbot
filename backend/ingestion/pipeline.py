@@ -23,8 +23,8 @@ def clean_indic_text(text: str) -> str:
     # Range 2: \u0600-\u08FF (Urdu, Kashmiri, Sindhi Perso-Arabic scripts)
     INDIC_RANGE = r'[\u0900-\u0DFF\u0600-\u08FF]'
 
-    # 1. Remove line-break hyphens splitting Indic words
-    text = re.sub(f'({INDIC_RANGE})-\\s*({INDIC_RANGE})', r'\1\2', text)
+    # 1. Remove line-break hyphens splitting Indic words (including soft hyphens and en/em dashes)
+    text = re.sub(f'({INDIC_RANGE})[-–—\xad]\\s*({INDIC_RANGE})', r'\1\2', text)
 
     # 2. Strip invisible formatting artifacts (zero-width spaces) and control characters
     # NOTE: We MUST NOT strip \u200C (ZWNJ) and \u200D (ZWJ) because Malayalam and other Indic languages rely on them for conjuncts and chillu characters.
@@ -97,6 +97,16 @@ def run_ingestion_pipeline(
     
     if not chunks:
         raise ValueError("Chunking resulted in 0 chunks")
+        
+    # [NEW] 3.5 Translate Malayalam chunks offline to prevent LLM language bleed
+    if language == 'malayalam':
+        from ingestion.translator import translate_chunks
+        texts = [c["text"] for c in chunks]
+        translated_texts = translate_chunks(texts)
+        for c, t_text in zip(chunks, translated_texts):
+            c["original_malayalam"] = c["text"]  # Save original in metadata
+            c["text"] = t_text                   # Overwrite with English for embeddings/LLM
+
         
     # 4. Generate Embeddings
     t4 = time.time()

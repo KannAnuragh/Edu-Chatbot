@@ -340,8 +340,8 @@ class CloudflareLLMProvider(BaseLLMProvider):
             "messages": self._build_messages(prompt),
             "stream": True,
             "max_tokens": 1024,
-            "temperature": 0.3,
-            "repetition_penalty": 1.15,
+            "temperature": 0.1,
+            "repetition_penalty": 1.1,
         }
         
         print(f"🤖 [CLOUDFLARE LLM] Model: {settings.CLOUDFLARE_LLM_MODEL} | Prompt length: {len(prompt)} chars (~{len(prompt) // 4} tokens)", flush=True)

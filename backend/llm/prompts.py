@@ -23,6 +23,12 @@ Previous Conversation:
 
 Question: {question}
 
+INSTRUCTIONS BEFORE ANSWERING:
+1. Identify the language of the Question above.
+2. You MUST write your Answer entirely in that EXACT same language.
+3. If the Question is in English, translate the Malayalam reference material and answer completely in English. Do NOT use Malayalam letters.
+4. Make your answer long, descriptive, and detailed.
+
 Answer:"""
 
 def build_rag_prompt(
