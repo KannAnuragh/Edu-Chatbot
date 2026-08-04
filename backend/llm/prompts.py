@@ -4,14 +4,16 @@ LLM — RAG Prompt Templates.
 System prompts and RAG context assembly for LLM providers.
 """
 
-SYSTEM_PROMPT = """You are a highly capable and intelligent educational assistant. Your goal is to help the student learn by providing clear, accurate, and comprehensive answers based on the provided material.
+SYSTEM_PROMPT = """You are a highly capable educational assistant. Answer clearly and accurately based ONLY on the provided reference material.
 
-Please adhere strictly to these rules:
-
-1. USE REFERENCE MATERIAL: Base your answers strictly on the facts provided in the "Reference Material". If the answer cannot be found or inferred from the Reference Material, simply state that you do not have enough information to answer.
-2. PERFECT LANGUAGE MATCHING: You must respond in the EXACT SAME language and script as the user's question. If the user asks in Malayalam, your answer MUST be in fluent, grammatically correct, and natural-sounding Malayalam. If the reference material is in English, translate the concepts accurately and beautifully into the user's language.
-3. BE COMPREHENSIVE AND HELPFUL: Provide detailed and well-explained answers. Do not be overly brief. Break down complex topics so the student can easily understand them. Use bullet points or paragraphs where appropriate to structure your response.
-4. NO META-COMMENTARY: Do not talk about the translation process, do not say "Based on the reference material...", and do not mention what language you are speaking. Just answer the question directly and naturally."""
+CRITICAL RULES:
+1. LANGUAGE MATCHING (STRICT): You MUST reply in the EXACT SAME language as the user's Question.
+   - If the user asks in English, you MUST reply entirely in English. DO NOT use Malayalam.
+   - If the user asks in Malayalam, you MUST reply entirely in Malayalam.
+   - Do NOT mix languages.
+2. FACTS ONLY: Base your answers STRICTLY on the facts in the "Reference Material". If the answer is not in the material, say "I do not have enough information to answer."
+3. DESCRIPTIVE & LONG ANSWERS: By default, provide very long, detailed, and highly descriptive answers. Break down complex topics thoroughly. Use paragraphs or bullet points. (Unless the user explicitly asks for a short or specific type of answer).
+4. NO META-COMMENTARY: Do not say "Based on the reference material..." or mention the language you are speaking. Just answer directly."""
 
 RAG_PROMPT_TEMPLATE = """Reference Material:
 {context}
@@ -22,8 +24,6 @@ Previous Conversation:
 Question: {question}
 
 Answer:"""
-
-
 
 def build_rag_prompt(
     context_chunks: list,
@@ -49,46 +49,38 @@ def build_rag_prompt(
         page = chunk.get('page_number', '?')
         text = chunk.get('text', '')
         
-        # Include relevance indicator to help LLM weigh chunks
-        if score >= 0.7:
-            relevance = "HIGH"
-        elif score >= 0.5:
-            relevance = "MEDIUM"
-        else:
-            relevance = "LOW"
-        
         context_parts.append(
-            f"**Source {i}** [Relevance: {relevance}]:\n{text}\n"
+            f"--- Document {i} (Score: {score:.2f}) ---\n"
+            f"Source: {filename}, Page: {page}\n"
+            f"{text}\n"
         )
-
-    context = "\n".join(context_parts) if context_parts else "No relevant context found in documents."
-
-    # Format conversation history (last 10 messages)
-    history_parts = []
-    recent_history = conversation_history[-10:] if conversation_history else []
-    for msg in recent_history:
-        role = "User" if msg["role"] == "user" else "Assistant"
-        history_parts.append(f"**{role}:** {msg['content']}")
-
-    history = "\n\n".join(history_parts) if history_parts else "No previous conversation."
-
+        
+    context_str = "\n".join(context_parts) if context_parts else "No reference material available."
+    
+    # Format history
+    history_str = ""
+    if conversation_history:
+        for msg in conversation_history:
+            role = "Student" if msg.role == "user" else "Assistant"
+            history_str += f"{role}: {msg.content}\n\n"
+            
     return RAG_PROMPT_TEMPLATE.format(
-        context=context,
-        history=history,
-        question=question,
+        context=context_str,
+        history=history_str or "No previous conversation.",
+        question=question
     )
-
 
 QUERY_OPTIMIZATION_PROMPT = """You are a search engine optimization expert. Your task is to convert the user's latest message into a highly effective English search query for a vector database.
 
-RULES:
-1. If the user's message is in Malayalam (or another language), translate the core intent to English keywords.
-2. Ignore conversational filler (e.g., "hi", "can you tell me", "what is").
-3. Extract only the key concepts and entities.
-4. Output ONLY the search query. Do not add quotes, explanations, or any other text.
-
-Conversation Context:
+Conversation History:
 {history}
 
 User's Latest Message: {query}
-Optimized English Search Query:"""
+
+Instructions:
+1. If the message is a greeting or casual chat, just return the exact message.
+2. If the message refers to previous context (e.g. "tell me more about it"), include the relevant context in the search query.
+3. The query MUST be in English.
+4. ONLY return the optimized query string. Do NOT add quotes or explanations.
+
+Optimized Query:"""
