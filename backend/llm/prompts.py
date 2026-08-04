@@ -61,8 +61,9 @@ def build_rag_prompt(
     history_str = ""
     if conversation_history:
         for msg in conversation_history:
-            role = "Student" if msg.role == "user" else "Assistant"
-            history_str += f"{role}: {msg.content}\n\n"
+            role_val = msg.get('role', '')
+            role = "Student" if role_val == "user" else "Assistant"
+            history_str += f"{role}: {msg.get('content', '')}\n\n"
             
     return RAG_PROMPT_TEMPLATE.format(
         context=context_str,
