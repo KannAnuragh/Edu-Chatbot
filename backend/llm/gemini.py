@@ -72,7 +72,7 @@ class GeminiClient:
         try:
             print(f"🤖 [GEMINI API CALL] Model: {settings.LLM_MODEL} | Prompt length: {len(prompt)} chars (~{len(prompt) // 4} tokens)", flush=True)
             
-            response_stream = client.aio.models.generate_content_stream(
+            response_stream = await client.aio.models.generate_content_stream(
                 model=settings.LLM_MODEL,
                 contents=prompt,
                 config=self._get_config()
