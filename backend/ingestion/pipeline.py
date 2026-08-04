@@ -59,7 +59,7 @@ def detect_indic_script(text: str) -> str:
     }
 
     top_script, count = max(script_counts.items(), key=lambda x: x[1])
-    return top_script if count > 5 else 'english_or_other'
+    return top_script[:10] if count > 5 else 'english'
 
 
 def run_ingestion_pipeline(
