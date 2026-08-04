@@ -21,7 +21,7 @@ Previous Conversation:
 
 Question: {question}
 
-CRITICAL: Output ONLY the direct answer in the EXACT SAME language as the Question. If the Question is in English, you MUST translate the reference facts and answer ENTIRELY in English (Do NOT use Malayalam letters). No preamble, no language explanations, no outside facts. If the answer is not in the Reference Material, say "I do not have enough information to answer."
+CRITICAL: Output ONLY the direct answer. No preamble, no language explanations, no outside facts. If the answer is not in the Reference Material, say "I do not have enough information to answer." If the Question is in English, answer entirely in English. If the Question is in Malayalam, answer using the Malayalam script.
 
 Answer:"""
 
