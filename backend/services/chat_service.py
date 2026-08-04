@@ -77,7 +77,7 @@ class ChatService:
                     content=message_text,
                 )
                 db.add(user_msg)
-                await db.flush()
+                await db.commit()
 
                 # Send conversation ID to client immediately
                 yield f"event: meta\ndata: {json.dumps({'conversation_id': str(conversation_id)})}\n\n"
