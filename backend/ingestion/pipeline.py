@@ -6,6 +6,7 @@ Orchestrates extraction, chunking, embedding, and vector storage.
 
 import re
 import time
+import unicodedata
 from typing import Tuple
 
 from ingestion.extractor import extract_text_from_file
@@ -19,6 +20,9 @@ def clean_indic_text(text: str) -> str:
     Covers: Devanagari, Bengali/Assamese, Gurmukhi, Gujarati, Odia,
             Tamil, Telugu, Kannada, Malayalam, Urdu/Perso-Arabic.
     """
+    # 0. Normalize Unicode to NFC format (collapses split ligatures and chillu characters)
+    text = unicodedata.normalize("NFC", text)
+
     # Range 1: \u0900-\u0DFF (All major Indic scripts)
     # Range 2: \u0600-\u08FF (Urdu, Kashmiri, Sindhi Perso-Arabic scripts)
     INDIC_RANGE = r'[\u0900-\u0DFF\u0600-\u08FF]'
@@ -97,16 +101,6 @@ def run_ingestion_pipeline(
     
     if not chunks:
         raise ValueError("Chunking resulted in 0 chunks")
-        
-    # [NEW] 3.5 Translate Malayalam chunks offline to prevent LLM language bleed
-    if language == 'malayalam':
-        from ingestion.translator import translate_chunks
-        texts = [c["text"] for c in chunks]
-        translated_texts = translate_chunks(texts)
-        for c, t_text in zip(chunks, translated_texts):
-            c["original_malayalam"] = c["text"]  # Save original in metadata
-            c["text"] = t_text                   # Overwrite with English for embeddings/LLM
-
         
     # 4. Generate Embeddings
     t4 = time.time()

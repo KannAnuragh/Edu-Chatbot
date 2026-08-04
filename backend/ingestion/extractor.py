@@ -134,7 +134,13 @@ def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
                 print(f"🔤 [FONT DETECT] No legacy Malayalam font detected. Using standard text extraction.", flush=True)
             
             for i, page in enumerate(doc, 1):
-                text = page.get_text("text").strip()
+                # Extract text using blocks to preserve layout/reading order
+                blocks = page.get_text("blocks")
+                # Filter out image blocks (block_type 1 is image, 0 is text)
+                text_blocks = [b for b in blocks if len(b) >= 7 and b[6] == 0]
+                # Sort blocks by vertical position first (top to bottom), then horizontal position
+                text_blocks.sort(key=lambda b: (b[1], b[0]))
+                text = "\n\n".join(b[4].strip() for b in text_blocks if b[4].strip()).strip()
                 
                 # If legacy font detected, convert the extracted text
                 if detected_font and text:
