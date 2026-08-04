@@ -89,7 +89,7 @@ async def list_enrolled_courses(
                     mock_course["badge_color"] = actual.badge_color
                     mock_course["document_count"] = actual.document_count
                     mock_course["created_at"] = actual.created_at.isoformat()
-                live_courses.append(mock_course)
+                    live_courses.append(mock_course)
                 
             return JSONResponse({
                 "courses": live_courses,
