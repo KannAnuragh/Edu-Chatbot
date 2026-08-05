@@ -1,9 +1,9 @@
 """
-PDF and TXT Text Extractor with Offline Malayalam FML/ML-TT Decoder.
+PDF and TXT Text Extractor.
 
 Extracts text from files using PyMuPDF (fitz) for fast extraction.
-Includes a 100% offline, zero-API, zero-rate-limit FML/ML-TT font decoder that
-instantly converts garbled SCERT Kerala PDF fonts to proper Unicode Malayalam.
+Intelligently detects legacy non-Unicode Indic fonts (like FML/ML-TT) and
+routes those specific pages through Tesseract OCR to ensure correct Unicode output.
 """
 
 from typing import List, Tuple
@@ -11,89 +11,54 @@ import fitz  # PyMuPDF
 import os
 import re
 import gc
+import io
+from PIL import Image
+import pytesseract
 
 from core.config import settings
 
-# --- Offline FML/ML-TT Malayalam Legacy Font Decoder ---
-MALAYALAM_REPLACEMENT_MAP = [
-    # Multi-character words/phrases
-    ('ഇഗ്ല്യ≥', 'ഇന്ത്യൻ'),
-    ('ഇഗ്ല്യ', 'ഇന്ത്യ'),
-    ('ഫ്രാ≥സ്', 'ഫ്രാൻസ്'),
-    ('ഫ്രാ≥സിൺ', 'ഫ്രാൻസിൽ'),
-    ('ത ല്ലാ≥ഡേയ്യഡ്', 'സ്റ്റാൻഡേർഡ്'),
-    ('ല്ലാ≥ഡേയ്യഡ്', 'സ്റ്റാൻഡേർഡ്'),
-    ('അസമ-ത്വത്മളായിരുന്നു', 'അസമത്വങ്ങളായിരുന്നു'),
-    ('ആയരുഗ്ലു', 'ആയിരുന്നു'),
-    ('മനഇ-ലാത്ഥാം', 'മനസ്സിലാക്കാം'),
-    ('മനഇലാത്ഥാം', 'മനസ്സിലാക്കാം'),
-
-    # Contextual remapped glyphs
-    ('ത്മ', 'ങ്ങ'),
-    ('സ്ഥ', 'ത്ത'),
-    ('ണ്ണ', 'ച്ച'),
-    ('ത്ഥ', 'ക്ക'),
-    ('ന്ത', 'ട്ട'),
-    ('യ്യ', 'ർ'),
-    ('ൺ', 'ൽ'),
-    ('ÿ', 'സ്ഥ'),
-    ('ഗ്ല', 'ന്ത'),
-    ('√', 'ല്ല'),
-    ('π', 'പ്ല'),
-    ('ø', 'യ്യ'),
-    ('ബ്ബ', 'മ്പ'),
-
-    # Single extended ASCII glyphs
-    ('≥', 'ൻ'),
-    ('ƒ', 'കൾ'),
-    ('∏', 'പ്പ'),
-    ('‰', 'റ്റ'),
-    ('μ', 'ന്ദ'),
-    ('™', 'ഞ്ഞ'),
-    ('Ω', 'മ്പ'),
-    ('≈', 'ള്ള'),
-    ('‚', 'ന്റെ'),
-    ('∑', 'മ്മാർ'),
-    ('‹', '്ന'),
-    ('›', 'പാ'),
-    ('∂', 'ട'),
-    ('Ø', 'ന്ത'),
-    ('¬', 'ന'),
-    ('®', 'ര'),
-    ('¿', 'മ'),
-    ('≤', 'ദ്ധ'),
-    ('≠', 'ണ്ട'),
-    ('∆', 'ക്'),
-    ('…', 'ത്ര'),
-    ('‡', 'ക്'),
-    ('ˆ', 'ൻ'),
-    ('˛', '-'),
-]
-
-
-def decode_malayalam_legacy_text(text: str) -> str:
+def _detect_legacy_font(page: fitz.Page) -> bool:
     """
-    Offline decoder for legacy Malayalam fonts (FML/ML-TT) extracted via PyMuPDF.
-    Runs instantaneously in 0.001 seconds without external APIs or rate limits.
+    Check if the page uses legacy non-Unicode Malayalam fonts.
+    Looks for common legacy font prefixes in the page's font list.
     """
-    if not text:
-        return text
+    legacy_keywords = ['fml', 'ml-tt', 'karthika', 'matweb', 'revathi', 'thoolika']
+    fonts = page.get_fonts()
+    for font in fonts:
+        # font is a tuple: (xref, ext, type, basefont, name, enc)
+        # We check the basefont and name fields (index 3 and 4)
+        basefont = str(font[3]).lower() if len(font) > 3 and font[3] else ""
+        name = str(font[4]).lower() if len(font) > 4 and font[4] else ""
+        
+        for keyword in legacy_keywords:
+            if keyword in basefont or keyword in name:
+                return True
+    return False
 
-    # Apply all remappings
-    for old, new in MALAYALAM_REPLACEMENT_MAP:
-        text = text.replace(old, new)
-
-    # Clean hyphens inside Malayalam words (e.g. ദേശീയ-തയും -> ദേശീയതയും)
-    INDIC_RANGE = r'[\u0900-\u0DFF]'
-    text = re.sub(f'({INDIC_RANGE})[-–—\xad]\\s*({INDIC_RANGE})', r'\1\2', text)
-    text = re.sub(f'({INDIC_RANGE})[-–—]({INDIC_RANGE})', r'\1\2', text)
-
-    return text
+def _local_ocr_page(page: fitz.Page) -> str:
+    """
+    Run Tesseract OCR on a specific PyMuPDF page.
+    Renders the page to a high-res image and extracts text.
+    """
+    # Render page to an image (scale up for better OCR accuracy)
+    matrix = fitz.Matrix(2, 2)
+    pix = page.get_pixmap(matrix=matrix)
+    
+    # Convert PyMuPDF pixmap to Pillow Image
+    if pix.alpha:
+        img = Image.frombytes("RGBA", [pix.width, pix.height], pix.samples)
+    else:
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        
+    # Run Tesseract OCR (assuming mal and eng language packs are installed)
+    text = pytesseract.image_to_string(img, lang='mal+eng')
+    return text.strip()
 
 
 def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
     """
-    Extract text from a PDF or TXT file using PyMuPDF + Offline Malayalam Decoder.
+    Extract text from a PDF or TXT file using PyMuPDF.
+    Routes legacy font pages through Tesseract OCR automatically.
     """
     pages_text = []
     doc = None
@@ -110,11 +75,14 @@ def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
             page_count = len(doc)
             
             for i, page in enumerate(doc, 1):
-                text = page.get_text("text").strip()
+                # Check for legacy fonts on this page
+                if _detect_legacy_font(page):
+                    print(f"⚠️ [Extractor] Legacy font detected on page {i}. Routing to Tesseract OCR...", flush=True)
+                    text = _local_ocr_page(page)
+                else:
+                    text = page.get_text("text").strip()
                 
-                # Apply offline Malayalam FML/ML-TT font decoder
                 if text:
-                    text = decode_malayalam_legacy_text(text)
                     text = text.replace('\x00', '')  # Remove null bytes
                     pages_text.append((i, text))
                     
@@ -130,3 +98,4 @@ def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
             except Exception:
                 pass
         gc.collect()
+

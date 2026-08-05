@@ -14,48 +14,6 @@ from ingestion.chunker import chunk_text
 from providers.factory import embedding_model, get_vector_db_client
 
 
-# Extended ASCII artifact replacement map for Malayalam legacy font encodings in PDFs (SCERT/FML/ML-TT)
-MALAYALAM_LEGACY_ARTIFACTS = {
-    # Words/phrases
-    'ഇഗ്ല്യ≥': 'ഇന്ത്യൻ',
-    'ഇഗ്ല്യ': 'ഇന്ത്യ',
-    'ഫ്രാ≥സ്': 'ഫ്രാൻസ്',
-    'ത ല്ലാ≥ഡേയ്യഡ്': 'സ്റ്റാൻഡേർഡ്',
-    'അസമ-ത്വത്മളായിരുന്നു': 'അസമത്വങ്ങളായിരുന്നു',
-    'ആയരുഗ്ലു': 'ആയിരുന്നു',
-    
-    # Common Ligatures & Glyphs
-    '≥': 'ൻ',
-    'ƒ': 'കൾ',
-    '∏': 'പ്പ',
-    '‰': 'റ്റ',
-    'μ': 'ന്ദ',
-    '™': 'ഞ്ഞ',
-    'Ω': 'മ്പ',
-    '≈': 'ള്ള',
-    '‚': 'െ',
-    '∑': 'മ്മാർ',
-    '‹': '്ന',
-    '›': 'പാ',
-    '∂': 'ട',
-    'Ø': 'ന്ത',
-    '¬': 'ന',
-    '®': 'ര',
-    '¿': 'മ',
-    'ÿ': '്യ',
-    '≤': 'ദ്ധ',
-    '≠': 'ച്ച',
-    '∆': 'ക്',
-    '…': 'ത്ര',
-    '‡': 'ക്',
-    'ˆ': 'ൻ',
-    '‰': 'റ്റ',
-    '‹': '്ന',
-    '˛': '-',
-    'ഫ്രാ≥സിൺ': 'ഫ്രാൻസിൽ',
-}
-
-
 def clean_indic_text(text: str) -> str:
     """
     Cleaner for Indic regional languages and PDF artifact glyphs.
@@ -63,10 +21,6 @@ def clean_indic_text(text: str) -> str:
     """
     # 0. Normalize Unicode to NFC format
     text = unicodedata.normalize("NFC", text)
-
-    # 1. Clean extended ASCII artifacts from legacy Malayalam PDF fonts
-    for artifact, replacement in MALAYALAM_LEGACY_ARTIFACTS.items():
-        text = text.replace(artifact, replacement)
 
     INDIC_RANGE = r'[\u0900-\u0DFF\u0600-\u08FF]'
 
