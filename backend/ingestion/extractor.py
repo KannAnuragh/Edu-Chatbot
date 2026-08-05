@@ -67,7 +67,11 @@ def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
                         
                         # Only use the map if it actually successfully generated mappings
                         if doc_font_maps[xref]:
-                            legacy_fonts_map[name] = doc_font_maps[xref]
+                            legacy_fonts_map[name.lower()] = doc_font_maps[xref]
+                            legacy_fonts_map[basefont.lower()] = doc_font_maps[xref]
+                            if "+" in basefont:
+                                stripped = basefont.split("+", 1)[1]
+                                legacy_fonts_map[stripped.lower()] = doc_font_maps[xref]
 
                 if not legacy_fonts_map:
                     text = raw_text.strip()
@@ -80,7 +84,7 @@ def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
                             for line in block.get("lines", []):
                                 line_text = ""
                                 for span in line.get("spans", []):
-                                    span_font = span.get("font")
+                                    span_font = span.get("font", "").lower()
                                     font_map = legacy_fonts_map.get(span_font)
                                     
                                     for char in span.get("chars", []):
