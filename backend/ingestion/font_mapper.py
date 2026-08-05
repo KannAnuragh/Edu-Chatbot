@@ -48,10 +48,17 @@ def _render_char(char_str: str, font: ImageFont.FreeTypeFont, size=32) -> np.nda
     img = img.resize((size, size), Image.Resampling.LANCZOS)
     return np.array(img)
 
+_GLOBAL_REF_BITMAPS = None
+
 def _build_reference_bitmaps() -> dict:
     """
     Builds a dictionary of {unicode_str: bitmap} for common Malayalam characters.
+    Caches it globally in memory.
     """
+    global _GLOBAL_REF_BITMAPS
+    if _GLOBAL_REF_BITMAPS is not None:
+        return _GLOBAL_REF_BITMAPS
+        
     _download_reference_font()
     font = ImageFont.truetype(REFERENCE_FONT_PATH, 32)
     
@@ -78,6 +85,7 @@ def _build_reference_bitmaps() -> dict:
     for char in targets:
         reference_bitmaps[char] = _render_char(char, font)
         
+    _GLOBAL_REF_BITMAPS = reference_bitmaps
     return reference_bitmaps
 
 def _mse(imageA: np.ndarray, imageB: np.ndarray) -> float:
@@ -97,7 +105,22 @@ def get_dynamic_font_map(doc: fitz.Document, font_xref: int) -> dict:
         if not font_data:
             return {}
             
-        ext, font_buffer, _ = font_data
+        ext = "ttf"
+        font_buffer = None
+        
+        if isinstance(font_data, dict):
+            ext = font_data.get("ext", "ttf")
+            font_buffer = font_data.get("font")
+        elif isinstance(font_data, tuple):
+            font_buffer = next((item for item in font_data if isinstance(item, bytes)), None)
+            for item in font_data:
+                if isinstance(item, str) and item.lower() in ["ttf", "cff", "otf", "n01"]:
+                    ext = item.lower()
+                    break
+                    
+        if not font_buffer:
+            print(f"⚠️ [FontMapper] Could not find font buffer in extract_font result")
+            return {}
         
         # Hash the font buffer to use as cache key
         font_hash = hashlib.sha256(font_buffer).hexdigest()

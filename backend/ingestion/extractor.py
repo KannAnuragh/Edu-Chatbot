@@ -34,6 +34,9 @@ def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
             doc = fitz.open(file_path)
             page_count = len(doc)
             
+            # Cache font maps during document extraction to avoid redundant disk/extraction operations
+            doc_font_maps = {}
+            
             for i, page in enumerate(doc, 1):
                 # Check for legacy fonts on this page
                 legacy_fonts_map = {}
@@ -44,9 +47,10 @@ def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
                     
                     legacy_keywords = ['fml', 'ml-tt', 'karthika', 'matweb', 'revathi', 'thoolika']
                     if any(kw in basefont or kw in name.lower() for kw in legacy_keywords):
-                        print(f"⚠️ [Extractor] Legacy font '{name}' detected on page {i}. Generating dynamic map...", flush=True)
-                        font_map = get_dynamic_font_map(doc, xref)
-                        legacy_fonts_map[name] = font_map
+                        if xref not in doc_font_maps:
+                            print(f"⚠️ [Extractor] Legacy font '{name}' detected on page {i}. Generating dynamic map...", flush=True)
+                            doc_font_maps[xref] = get_dynamic_font_map(doc, xref)
+                        legacy_fonts_map[name] = doc_font_maps[xref]
 
                 if not legacy_fonts_map:
                     text = page.get_text("text").strip()
