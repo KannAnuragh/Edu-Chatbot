@@ -122,6 +122,8 @@ class ChatService:
                 )
                 t_retrieval_end = time.time()
                 
+                print(f"🐛 [CHAT DEBUG] Raw chunks retrieved from Qdrant: {len(raw_chunks)}", flush=True)
+                
                 # STRICT FALLBACK VERIFICATION: Filter out any chunks that don't match the course_id
                 # This guarantees isolation even if the vector DB index has an issue.
                 course_filtered_chunks = []
@@ -132,6 +134,8 @@ class ChatService:
                         continue
                     course_filtered_chunks.append(c)
                 
+                print(f"🐛 [CHAT DEBUG] Chunks remaining after course filter: {len(course_filtered_chunks)}", flush=True)
+                
                 # RELEVANCE FILTERING: Only keep chunks above the similarity threshold
                 relevant_chunks = []
                 discarded_chunks = []
@@ -141,6 +145,8 @@ class ChatService:
                         relevant_chunks.append(c)
                     else:
                         discarded_chunks.append(c)
+                        
+                print(f"🐛 [CHAT DEBUG] Chunks above threshold ({RELEVANCE_THRESHOLD}): {len(relevant_chunks)}", flush=True)
                 
                 # Use relevant chunks (or fall back to top chunks if all are below threshold)
                 if relevant_chunks:

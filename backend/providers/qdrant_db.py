@@ -67,6 +67,24 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
     ) -> List[Dict[str, Any]]:
         
         try:
+            # DEBUG: Check collection count
+            try:
+                count_result = await self.async_client.count(collection_name=self.COLLECTION_NAME)
+                print(f"🐛 [QDRANT DEBUG] Total points in {self.COLLECTION_NAME}: {count_result.count}", flush=True)
+                
+                # DEBUG: Check points for this specific course_id
+                course_count = await self.async_client.count(
+                    collection_name=self.COLLECTION_NAME,
+                    count_filter=Filter(
+                        must=[FieldCondition(key="course_id", match=MatchValue(value=str(course_id)))]
+                    )
+                )
+                print(f"🐛 [QDRANT DEBUG] Total points for course {course_id}: {course_count.count}", flush=True)
+            except Exception as e:
+                print(f"🐛 [QDRANT DEBUG] Failed to get count: {e}", flush=True)
+
+            print(f"🐛 [QDRANT DEBUG] Searching vector of size {len(query_vector)} with limit {limit}", flush=True)
+
             results = await self.async_client.search(
                 collection_name=self.COLLECTION_NAME,
                 query_vector=query_vector,
@@ -81,13 +99,17 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
                 )
             )
             
+            print(f"🐛 [QDRANT DEBUG] Search returned {len(results)} hits.", flush=True)
+            
             # Include similarity score in results
             return [
                 {**hit.payload, "score": hit.score}
                 for hit in results
             ]
         except Exception as e:
-            print(f"Qdrant Search Error: {e}")
+            print(f"Qdrant Search Error: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
             return []
 
     async def delete_document_vectors(self, user_id: str, document_id: str):
