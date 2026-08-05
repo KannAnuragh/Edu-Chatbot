@@ -248,9 +248,11 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
     ) -> List[Dict[str, Any]]:
         url = f"{self._get_base_url()}/query"
         
-        # NOTE: Fetch extra candidates (100) so Python course filtering doesn't run out
+        # NOTE: Fetch extra candidates so Python course filtering doesn't run out
         # of matches if vectors from other courses score higher.
-        fetch_limit = max(limit * 10, 100)
+        # CRITICAL: Cloudflare Vectorize restricts topK to a maximum of 50 if returnMetadata="all"
+        fetch_limit = min(max(limit * 3, 20), 50)
+        
         payload = {
             "vector": query_vector,
             "topK": fetch_limit,
