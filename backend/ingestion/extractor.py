@@ -2,63 +2,23 @@
 PDF and TXT Text Extractor.
 
 Extracts text from files using PyMuPDF (fitz) for fast extraction.
-Intelligently detects legacy non-Unicode Indic fonts (like FML/ML-TT) and
-routes those specific pages through Tesseract OCR to ensure correct Unicode output.
+Intelligently detects legacy non-Unicode Indic fonts (like FML/ML-TT),
+dynamically generates a glyph-to-Unicode mapping dictionary based on visual rendering,
+and seamlessly applies it during extraction.
 """
 
 from typing import List, Tuple
 import fitz  # PyMuPDF
 import os
-import re
 import gc
-import io
-from PIL import Image
-import pytesseract
 
 from core.config import settings
-
-def _detect_legacy_font(page: fitz.Page) -> bool:
-    """
-    Check if the page uses legacy non-Unicode Malayalam fonts.
-    Looks for common legacy font prefixes in the page's font list.
-    """
-    legacy_keywords = ['fml', 'ml-tt', 'karthika', 'matweb', 'revathi', 'thoolika']
-    fonts = page.get_fonts()
-    for font in fonts:
-        # font is a tuple: (xref, ext, type, basefont, name, enc)
-        # We check the basefont and name fields (index 3 and 4)
-        basefont = str(font[3]).lower() if len(font) > 3 and font[3] else ""
-        name = str(font[4]).lower() if len(font) > 4 and font[4] else ""
-        
-        for keyword in legacy_keywords:
-            if keyword in basefont or keyword in name:
-                return True
-    return False
-
-def _local_ocr_page(page: fitz.Page) -> str:
-    """
-    Run Tesseract OCR on a specific PyMuPDF page.
-    Renders the page to a high-res image and extracts text.
-    """
-    # Render page to an image (scale up for better OCR accuracy)
-    matrix = fitz.Matrix(2, 2)
-    pix = page.get_pixmap(matrix=matrix)
-    
-    # Convert PyMuPDF pixmap to Pillow Image
-    if pix.alpha:
-        img = Image.frombytes("RGBA", [pix.width, pix.height], pix.samples)
-    else:
-        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-        
-    # Run Tesseract OCR (assuming mal and eng language packs are installed)
-    text = pytesseract.image_to_string(img, lang='mal+eng')
-    return text.strip()
-
+from ingestion.font_mapper import get_dynamic_font_map
 
 def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
     """
     Extract text from a PDF or TXT file using PyMuPDF.
-    Routes legacy font pages through Tesseract OCR automatically.
+    Automatically applies dynamic visual glyph mapping to legacy fonts.
     """
     pages_text = []
     doc = None
@@ -76,11 +36,41 @@ def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
             
             for i, page in enumerate(doc, 1):
                 # Check for legacy fonts on this page
-                if _detect_legacy_font(page):
-                    print(f"⚠️ [Extractor] Legacy font detected on page {i}. Routing to Tesseract OCR...", flush=True)
-                    text = _local_ocr_page(page)
-                else:
+                legacy_fonts_map = {}
+                for font in page.get_fonts():
+                    xref = font[0]
+                    basefont = str(font[3]).lower() if len(font) > 3 and font[3] else ""
+                    name = str(font[4]) if len(font) > 4 and font[4] else ""
+                    
+                    legacy_keywords = ['fml', 'ml-tt', 'karthika', 'matweb', 'revathi', 'thoolika']
+                    if any(kw in basefont or kw in name.lower() for kw in legacy_keywords):
+                        print(f"⚠️ [Extractor] Legacy font '{name}' detected on page {i}. Generating dynamic map...", flush=True)
+                        font_map = get_dynamic_font_map(doc, xref)
+                        legacy_fonts_map[name] = font_map
+
+                if not legacy_fonts_map:
                     text = page.get_text("text").strip()
+                else:
+                    # Apply dynamic font maps by reading raw character data
+                    text_blocks = []
+                    page_dict = page.get_text("dict")
+                    for block in page_dict.get("blocks", []):
+                        if block.get("type") == 0:  # Text block
+                            for line in block.get("lines", []):
+                                line_text = ""
+                                for span in line.get("spans", []):
+                                    span_font = span.get("font")
+                                    font_map = legacy_fonts_map.get(span_font)
+                                    
+                                    for char in span.get("chars", []):
+                                        c = char.get("c", "")
+                                        # Apply mapping if available, else use original char
+                                        if font_map and c in font_map:
+                                            line_text += font_map[c]
+                                        else:
+                                            line_text += c
+                                text_blocks.append(line_text)
+                    text = "\n".join(text_blocks).strip()
                 
                 if text:
                     text = text.replace('\x00', '')  # Remove null bytes
