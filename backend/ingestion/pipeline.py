@@ -14,27 +14,58 @@ from ingestion.chunker import chunk_text
 from providers.factory import embedding_model, get_vector_db_client
 
 
+# Extended ASCII artifact replacement map for Malayalam legacy font encodings in PDFs (SCERT/FML/ML-TT)
+MALAYALAM_LEGACY_ARTIFACTS = {
+    'ഇഗ്ല്യ≥': 'ഇന്ത്യൻ',
+    'ഇഗ്ല്യ': 'ഇന്ത്യ',
+    'ƒ': 'കൾ',
+    '∏': 'പ്പ',
+    '‰': 'റ്റ',
+    'μ': 'ന്ദ',
+    '™': 'ഞ്ഞ',
+    'Ω': 'മ്പ',
+    '≈': 'ള്ള',
+    '≥': 'ഡ്',
+    '‚': 'െ',
+    '∑': 'മ്മാർ',
+    '‹': '്ന',
+    '›': 'പാ',
+    '∂': 'ട',
+    'Ø': 'ന്ത',
+    '¬': 'ന',
+    '®': 'ര',
+    '¿': 'മ',
+    'ÿ': '്യ',
+    '≤': 'ദ്ധ',
+    '≠': 'ച്ച',
+    '∆': 'ക്',
+    '…': 'ത്ര',
+}
+
+
 def clean_indic_text(text: str) -> str:
     """
-    Zero-memory regex cleaner for all Indian regional languages.
-    Covers: Devanagari, Bengali/Assamese, Gurmukhi, Gujarati, Odia,
-            Tamil, Telugu, Kannada, Malayalam, Urdu/Perso-Arabic.
+    Cleaner for Indic regional languages and PDF artifact glyphs.
+    Covers: Malayalam, Devanagari, Tamil, Telugu, Kannada, etc.
     """
-    # 0. Normalize Unicode to NFC format (collapses split ligatures and chillu characters)
+    # 0. Normalize Unicode to NFC format
     text = unicodedata.normalize("NFC", text)
 
-    # Range 1: \u0900-\u0DFF (All major Indic scripts)
-    # Range 2: \u0600-\u08FF (Urdu, Kashmiri, Sindhi Perso-Arabic scripts)
+    # 1. Clean extended ASCII artifacts from legacy Malayalam PDF fonts
+    for artifact, replacement in MALAYALAM_LEGACY_ARTIFACTS.items():
+        text = text.replace(artifact, replacement)
+
     INDIC_RANGE = r'[\u0900-\u0DFF\u0600-\u08FF]'
 
-    # 1. Remove line-break hyphens splitting Indic words (including soft hyphens and en/em dashes)
+    # 2. Remove line-break hyphens splitting Indic words (including soft hyphens and dashes)
     text = re.sub(f'({INDIC_RANGE})[-–—\xad]\\s*({INDIC_RANGE})', r'\1\2', text)
+    # Clean mid-word hyphens (e.g. ദേശീയ-തയും -> ദേശീയതയും)
+    text = re.sub(f'({INDIC_RANGE})[-–—]({INDIC_RANGE})', r'\1\2', text)
 
-    # 2. Strip invisible formatting artifacts (zero-width spaces) and control characters
-    # NOTE: We MUST NOT strip \u200C (ZWNJ) and \u200D (ZWJ) because Malayalam and other Indic languages rely on them for conjuncts and chillu characters.
+    # 3. Strip invisible formatting artifacts and control characters
     text = re.sub(r'[\u200B\uFEFF\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
 
-    # 3. Collapse multiple whitespaces/newlines into single spaces
+    # 4. Collapse multiple whitespaces/newlines into single spaces
     text = re.sub(r'\s+', ' ', text).strip()
 
     return text
