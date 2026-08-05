@@ -43,39 +43,18 @@ def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
                 has_legacy_gibberish = bool(re.search(r'[ß∂Ø∏°±ƒ]', raw_text))
                 
                 if has_legacy_gibberish:
-                    print(f"⚠️ [Extractor] Legacy FML gibberish detected on page {i}. Routing through Payyans converter...", flush=True)
+                    print(f"⚠️ [Extractor] Legacy FML gibberish detected on page {i}. Routing through SMC Regex Engine...", flush=True)
                     try:
-                        from libindic.payyans import Payyans
-                        payyans_converter = Payyans()
-                        
-                        # Apply Payyans to convert the garbled FML ASCII back to pristine Unicode
-                        converted_text = ""
-                        try:
-                            converted_text = payyans_converter.ASCII2Unicode(raw_text, "ML-TTKarthika")
-                        except Exception as main_e:
-                            print(f"⚠️ [Extractor] ML-TTKarthika failed: {main_e}. Trying other maps...", flush=True)
-                            for m in payyans_converter.listAvailableMaps():
-                                try:
-                                    out_text = payyans_converter.ASCII2Unicode(raw_text, m)
-                                    if out_text and out_text.strip() and out_text != raw_text:
-                                        converted_text = out_text
-                                        print(f"⚠️ [Extractor] Success with map {m}", flush=True)
-                                        break
-                                except:
-                                    continue
-                        
-                        if converted_text and converted_text.strip() and converted_text.strip() != raw_text.strip():
-                            # Clean up known minor glitches from Payyans legacy mapping
-                            text = converted_text.strip()
-                            text = text.replace('‰', 'റ്റ').replace('‖', 'പ്പ').replace('ÿ', 'സ്ഥ')
-                        else:
-                            text = raw_text.strip()
-                    except ImportError:
-                        print("⚠️ [Extractor] libindic-payyans not installed. Falling back to raw text.", flush=True)
-                        text = raw_text.strip()
+                        from ingestion.smc_fml_converter import convert_fml_to_unicode
+                        text = convert_fml_to_unicode(raw_text).strip()
                     except Exception as e:
-                        print(f"⚠️ [Extractor] Payyans conversion failed for page {i}: {e}. Falling back to raw text.", flush=True)
-                        text = raw_text.strip()
+                        print(f"⚠️ [Extractor] SMC conversion failed for page {i}: {e}. Falling back to Payyans...", flush=True)
+                        try:
+                            from libindic.payyans import Payyans
+                            payyans_converter = Payyans()
+                            text = payyans_converter.ASCII2Unicode(raw_text, "ML-TTKarthika").strip()
+                        except Exception:
+                            text = raw_text.strip()
                 else:
                     text = raw_text.strip()
                 
