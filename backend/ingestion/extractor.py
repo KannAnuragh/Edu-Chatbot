@@ -1,15 +1,16 @@
 """
 PDF and TXT Text Extractor.
 
-Extracts text from files using PyMuPDF for PDFs and standard I/O for TXT.
+Extracts text from files using PyMuPDF (fitz) for high-speed, low-memory PDF extraction.
 Automatically converts legacy Malayalam fonts (ML-TT*) to proper Unicode
 using the libindic-payyans library — completely offline, zero API tokens.
 """
 
 from typing import List, Tuple
-import pdfplumber
+import fitz  # PyMuPDF
 import os
 import re
+import gc
 
 from core.config import settings
 
@@ -30,21 +31,35 @@ def _get_payyans():
     return _payyans_instance
 
 
-def _detect_legacy_font_heuristic(text: str) -> str:
+def _detect_legacy_font(page, text: str) -> str:
     """
-    Detect if extracted text uses a legacy Malayalam font based on content heuristics.
+    Detect if a PDF page uses a legacy Malayalam font (ML-TT*, FML*).
+    Uses both font metadata and content heuristics.
     """
-    if not text:
-        return ""
     try:
-        # These specific extended ASCII characters are the hallmarks of FML/ML legacy fonts
-        signature_chars = {'∂', 'Ø', '¬', '®', '¿', 'ƒ', 'Ω', '°', 'ÿ', '‰', '≥', '≤', '≠', '≈', '∆', '…'}
-        char_count = sum(1 for c in text if c in signature_chars)
-        
-        # If we see even a few of these characters, it's a legacy Malayalam font
-        if char_count > 3:
-            print(f"🔤 [FONT DETECT] Content heuristic triggered! Found {char_count} legacy signature characters.", flush=True)
-            return "ML-TTKarthika"
+        # 1. Metadata check (full=False prevents expensive font binary parsing)
+        fonts = page.get_fonts(full=False)
+        for font_info in fonts:
+            basefont = font_info[3] if len(font_info) > 3 else ""
+            name = font_info[4] if len(font_info) > 4 else ""
+            
+            for font_str in [basefont, name]:
+                if not font_str:
+                    continue
+                font_upper = font_str.upper().replace(" ", "").replace("-", "")
+                if any(kw in font_upper for kw in ["MLTT", "FML", "KARTHIKA", "AYILYAM", "REVATHI", "BHARATHI"]):
+                    return "ML-TTKarthika"  # Default to most common standard mapping
+                    
+        # 2. Content Heuristic check (Fallback if metadata is stripped/different)
+        if text:
+            # Extended ASCII characters hallmark of FML/ML legacy fonts
+            signature_chars = {'∂', 'Ø', '¬', '®', '¿', 'ƒ', 'Ω', '°', 'ÿ', '‰', '≥', '≤', '≠', '≈', '∆', '…'}
+            char_count = sum(1 for c in text if c in signature_chars)
+            
+            if char_count > 3:
+                print(f"🔤 [FONT DETECT] Content heuristic triggered! Found {char_count} legacy signature characters.", flush=True)
+                return "ML-TTKarthika"
+                
     except Exception as e:
         print(f"⚠️ [FONT DETECT] Error detecting fonts: {e}", flush=True)
     return ""
@@ -53,13 +68,6 @@ def _detect_legacy_font_heuristic(text: str) -> str:
 def _convert_legacy_text(text: str, font_name: str) -> str:
     """
     Convert legacy Malayalam ASCII text to proper Unicode using Payyans.
-    
-    Args:
-        text: The garbled ASCII text extracted from the PDF
-        font_name: The legacy font name (e.g. ML-TTKarthika)
-    
-    Returns:
-        Converted Unicode Malayalam text, or original text if conversion fails.
     """
     converter = _get_payyans()
     if converter is None:
@@ -77,59 +85,47 @@ def _convert_legacy_text(text: str, font_name: str) -> str:
 
 def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
     """
-    Extract text from a PDF or TXT file.
-    
-    For PDFs with legacy Malayalam fonts (ML-TT*), automatically converts
-    the garbled ASCII to proper Unicode Malayalam using Payyans.
-    
-    Args:
-        file_path: Path to the file
-        
-    Returns:
-        Tuple containing:
-        - List of (page_number, extracted_text)
-        - Total page count
+    Extract text from a PDF or TXT file using fast native PyMuPDF stream parsing.
     """
     pages_text = []
+    doc = None
     
     try:
         if file_path.lower().endswith(".txt"):
-            # Handle plain text files
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             pages_text.append((1, content))
             return pages_text, 1
             
         else:
-            # Handle PDF files using pdfplumber
-            with pdfplumber.open(file_path) as doc:
-                page_count = len(doc.pages)
+            doc = fitz.open(file_path)
+            page_count = len(doc)
+            
+            for i, page in enumerate(doc, 1):
+                text = page.get_text("text").strip()
                 
-                for i, page in enumerate(doc.pages, 1):
-                    # Extract text using pdfplumber to better preserve complex layouts and tables
-                    text = page.extract_text()
+                # Check for legacy font
+                detected_font = _detect_legacy_font(page, text)
+                
+                if detected_font and text:
+                    text = _convert_legacy_text(text, detected_font)
+                    if i <= 3 or i % 50 == 0:
+                        preview = text[:80].replace('\n', ' ')
+                        print(f"📝 [FONT CONVERT] Page {i}/{page_count}: {preview}...", flush=True)
+                
+                if text:
+                    text = text.replace('\x00', '')  # Remove null bytes
+                    pages_text.append((i, text))
                     
-                    if text:
-                        text = text.strip()
-                        # Check for legacy font heuristically on this extracted text
-                        detected_font = _detect_legacy_font_heuristic(text)
-                        
-                        # If legacy font detected, convert the extracted text
-                        if detected_font:
-                            text = _convert_legacy_text(text, detected_font)
-                            if i <= 3 or i % 50 == 0:
-                                # Log progress for first few pages and every 50th page
-                                preview = text[:80].replace('\n', ' ')
-                                print(f"📝 [FONT CONVERT] Page {i}/{page_count}: {preview}...", flush=True)
-                        
-                        text = text.replace('\x00', '')  # Remove null bytes
-                        pages_text.append((i, text))
-                        
             return pages_text, page_count
             
     except Exception as e:
         print(f"Extraction error for {file_path}: {e}")
         raise e
     finally:
-        import gc
+        if doc is not None and hasattr(doc, 'close'):
+            try:
+                doc.close()
+            except Exception:
+                pass
         gc.collect()
