@@ -16,8 +16,16 @@ from providers.factory import embedding_model, get_vector_db_client
 
 # Extended ASCII artifact replacement map for Malayalam legacy font encodings in PDFs (SCERT/FML/ML-TT)
 MALAYALAM_LEGACY_ARTIFACTS = {
+    # Words/phrases
     'ഇഗ്ല്യ≥': 'ഇന്ത്യൻ',
     'ഇഗ്ല്യ': 'ഇന്ത്യ',
+    'ഫ്രാ≥സ്': 'ഫ്രാൻസ്',
+    'ത ല്ലാ≥ഡേയ്യഡ്': 'സ്റ്റാൻഡേർഡ്',
+    'അസമ-ത്വത്മളായിരുന്നു': 'അസമത്വങ്ങളായിരുന്നു',
+    'ആയരുഗ്ലു': 'ആയിരുന്നു',
+    
+    # Common Ligatures & Glyphs
+    '≥': 'ൻ',
     'ƒ': 'കൾ',
     '∏': 'പ്പ',
     '‰': 'റ്റ',
@@ -25,7 +33,6 @@ MALAYALAM_LEGACY_ARTIFACTS = {
     '™': 'ഞ്ഞ',
     'Ω': 'മ്പ',
     '≈': 'ള്ള',
-    '≥': 'ഡ്',
     '‚': 'െ',
     '∑': 'മ്മാർ',
     '‹': '്ന',
@@ -40,6 +47,12 @@ MALAYALAM_LEGACY_ARTIFACTS = {
     '≠': 'ച്ച',
     '∆': 'ക്',
     '…': 'ത്ര',
+    '‡': 'ക്',
+    'ˆ': 'ൻ',
+    '‰': 'റ്റ',
+    '‹': '്ന',
+    '˛': '-',
+    'ഫ്രാ≥സിൺ': 'ഫ്രാൻസിൽ',
 }
 
 

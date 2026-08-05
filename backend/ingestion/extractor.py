@@ -1,9 +1,9 @@
 """
-PDF and TXT Text Extractor.
+PDF and TXT Text Extractor with Gemini Vision OCR Fallback.
 
-Extracts text from files using PyMuPDF (fitz) for high-speed, low-memory PDF extraction.
-Automatically converts legacy Malayalam fonts (ML-TT*) to proper Unicode
-using the libindic-payyans library — completely offline, zero API tokens.
+Extracts text from files using PyMuPDF (fitz) for fast extraction.
+If legacy Malayalam fonts or garbled text are detected, automatically falls back
+to Gemini Vision OCR (gemini-2.0-flash) for 100% accurate Unicode Malayalam extraction.
 """
 
 from typing import List, Tuple
@@ -11,81 +11,97 @@ import fitz  # PyMuPDF
 import os
 import re
 import gc
+import time
 
 from core.config import settings
 
-# --- Lazy-loaded Payyans converter (initialized once) ---
-_payyans_instance = None
+# --- Lazy-loaded Gemini Client ---
+_gemini_client = None
 
-def _get_payyans():
-    """Lazy-load the Payyans converter to avoid import errors if not installed."""
-    global _payyans_instance
-    if _payyans_instance is None:
-        try:
-            from libindic.payyans import Payyans
-            _payyans_instance = Payyans()
-            print("✅ [PAYYANS] Font converter loaded successfully.", flush=True)
-        except ImportError:
-            print("⚠️ [PAYYANS] libindic-payyans not installed. Legacy font conversion disabled.", flush=True)
-            return None
-    return _payyans_instance
+def _get_gemini_client():
+    """Lazy-load Gemini client for OCR fallback."""
+    global _gemini_client
+    if _gemini_client is None:
+        api_key = getattr(settings, "GEMINI_API_KEY", "") or os.environ.get("GEMINI_API_KEY", "")
+        if api_key:
+            try:
+                from google import genai
+                _gemini_client = genai.Client(api_key=api_key)
+                print("✅ [EXTRACTOR] Gemini Vision OCR client initialized.", flush=True)
+            except Exception as e:
+                print(f"⚠️ [EXTRACTOR] Failed to load Gemini client: {e}", flush=True)
+                return None
+    return _gemini_client
 
 
-def _detect_legacy_font(page, text: str) -> str:
+def _needs_vision_ocr(page, text: str) -> bool:
     """
-    Detect if a PDF page uses a legacy Malayalam font (ML-TT*, FML*).
-    Uses both font metadata and content heuristics.
+    Check if a page has garbled legacy fonts or broken encoding that requires Gemini Vision OCR.
     """
+    if not text or len(text.strip()) < 15:
+        return True  # Scanned or empty page
+        
+    # Extended ASCII signature characters hallmark of broken FML/ML legacy fonts
+    signature_chars = {'∂', 'Ø', '¬', '®', '¿', 'ƒ', 'Ω', '°', 'ÿ', '‰', '≥', '≤', '≠', '≈', '∆', '…', '∏', 'μ', '™', '‚', '∑', '‡', 'ˆ', '˛'}
+    char_count = sum(1 for c in text if c in signature_chars)
+    if char_count > 2:
+        return True
+
+    # Font metadata check
     try:
-        # 1. Metadata check (full=False prevents expensive font binary parsing)
         fonts = page.get_fonts(full=False)
         for font_info in fonts:
             basefont = font_info[3] if len(font_info) > 3 else ""
             name = font_info[4] if len(font_info) > 4 else ""
-            
             for font_str in [basefont, name]:
-                if not font_str:
-                    continue
-                font_upper = font_str.upper().replace(" ", "").replace("-", "")
-                if any(kw in font_upper for kw in ["MLTT", "FML", "KARTHIKA", "AYILYAM", "REVATHI", "BHARATHI"]):
-                    return "ML-TTKarthika"  # Default to most common standard mapping
-                    
-        # 2. Content Heuristic check (Fallback if metadata is stripped/different)
-        if text:
-            # Extended ASCII characters hallmark of FML/ML legacy fonts
-            signature_chars = {'∂', 'Ø', '¬', '®', '¿', 'ƒ', 'Ω', '°', 'ÿ', '‰', '≥', '≤', '≠', '≈', '∆', '…'}
-            char_count = sum(1 for c in text if c in signature_chars)
-            
-            if char_count > 3:
-                print(f"🔤 [FONT DETECT] Content heuristic triggered! Found {char_count} legacy signature characters.", flush=True)
-                return "ML-TTKarthika"
-                
-    except Exception as e:
-        print(f"⚠️ [FONT DETECT] Error detecting fonts: {e}", flush=True)
-    return ""
+                if font_str:
+                    font_upper = font_str.upper().replace(" ", "").replace("-", "")
+                    if any(kw in font_upper for kw in ["MLTT", "FML", "KARTHIKA", "AYILYAM", "REVATHI", "BHARATHI"]):
+                        return True
+    except Exception:
+        pass
+
+    return False
 
 
-def _convert_legacy_text(text: str, font_name: str) -> str:
+def _ocr_page_with_gemini(page) -> str:
     """
-    Convert legacy Malayalam ASCII text to proper Unicode using Payyans.
+    Render PDF page as an image and extract text using Gemini Vision OCR.
     """
-    converter = _get_payyans()
-    if converter is None:
-        return text
-    
+    client = _get_gemini_client()
+    if client is None:
+        return ""
+
     try:
-        converted = converter.ASCII2Unicode(text, font_name)
-        if converted and len(converted.strip()) > 0:
-            return converted
-        return text
+        from google.genai import types
+
+        # Render page as PNG image in-memory (1.2 zoom balances quality & speed)
+        mat = fitz.Matrix(1.2, 1.2)
+        pix = page.get_pixmap(matrix=mat)
+        img_bytes = pix.tobytes("png")
+
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=[
+                types.Part.from_bytes(
+                    data=img_bytes,
+                    mime_type="image/png"
+                ),
+                "Extract all text from this image. Keep the language exact (Malayalam/English). Fix any legacy font encoding so it becomes clean, accurate Unicode. Do not write any preamble or intro."
+            ]
+        )
+
+        del pix, img_bytes
+        if response and response.text:
+            return response.text.strip()
     except Exception as e:
-        print(f"⚠️ [FONT CONVERT] Conversion failed for font '{font_name}': {e}", flush=True)
-        return text
+        print(f"⚠️ [GEMINI OCR] Vision extraction failed for page: {e}", flush=True)
+    return ""
 
 
 def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
     """
-    Extract text from a PDF or TXT file using fast native PyMuPDF stream parsing.
+    Extract text from a PDF or TXT file using PyMuPDF + Gemini Vision OCR fallback.
     """
     pages_text = []
     doc = None
@@ -100,19 +116,26 @@ def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
         else:
             doc = fitz.open(file_path)
             page_count = len(doc)
+            gemini_used_count = 0
             
             for i, page in enumerate(doc, 1):
                 text = page.get_text("text").strip()
                 
-                # Check for legacy font
-                detected_font = _detect_legacy_font(page, text)
-                
-                if detected_font and text:
-                    text = _convert_legacy_text(text, detected_font)
-                    if i <= 3 or i % 50 == 0:
+                # Check if page has garbled fonts or needs OCR
+                if _needs_vision_ocr(page, text):
+                    print(f"👁️ [OCR] Page {i}/{page_count}: Garbled/scanned text detected. Running Gemini Vision OCR...", flush=True)
+                    
+                    # Rate limiting sleep if we are repeatedly using Gemini free tier
+                    if gemini_used_count > 0:
+                        time.sleep(3.5)
+                        
+                    ocr_text = _ocr_page_with_gemini(page)
+                    if ocr_text:
+                        text = ocr_text
+                        gemini_used_count += 1
                         preview = text[:80].replace('\n', ' ')
-                        print(f"📝 [FONT CONVERT] Page {i}/{page_count}: {preview}...", flush=True)
-                
+                        print(f"✨ [OCR SUCCESS] Page {i}: {preview}...", flush=True)
+
                 if text:
                     text = text.replace('\x00', '')  # Remove null bytes
                     pages_text.append((i, text))
