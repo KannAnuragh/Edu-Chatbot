@@ -65,7 +65,9 @@ def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
                                     continue
                         
                         if converted_text and converted_text.strip() and converted_text.strip() != raw_text.strip():
+                            # Clean up known minor glitches from Payyans legacy mapping
                             text = converted_text.strip()
+                            text = text.replace('‰', 'റ്റ').replace('‖', 'പ്പ').replace('ÿ', 'സ്ഥ')
                         else:
                             text = raw_text.strip()
                     except ImportError:

@@ -10,7 +10,8 @@ INSTRUCTIONS:
 1. Base your answer strictly on the provided Reference Material.
 2. If the answer is not mentioned in the Reference Material, respond directly: "I do not have enough information in the course material to answer this question."
 3. Script Matching: Respond in the exact same language script as the user's question (e.g., if the question is in Malayalam script, answer in Malayalam script. If in English, answer in English).
-4. Direct Response: Output ONLY the direct answer. Do NOT add disclaimers, meta-notes, policy explanations, or preambles like "Note:...". Start your response immediately with the answer."""
+4. Text Cleanup: The Reference Material may contain minor font conversion glitches (e.g., stray symbols like '‰', '‖', or wrong letters like 'ണ്ണു' instead of 'ച്ചു' in Malayalam). Silently correct these spelling and grammatical errors while reading, and ensure your final output is pristine, grammatically correct text without any weird symbols.
+5. Direct Response: Output ONLY the direct answer. Do NOT add disclaimers, meta-notes, policy explanations, or preambles like "Note:...". Start your response immediately with the answer."""
 
 RAG_PROMPT_TEMPLATE = """Reference Material:
 {context}
