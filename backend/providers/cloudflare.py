@@ -248,18 +248,17 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
     ) -> List[Dict[str, Any]]:
         url = f"{self._get_base_url()}/query"
         
-        # NOTE: Cloudflare Vectorize requires explicit metadata indexes to be
-        # created before filters work. Without a metadata index on 'course_id',
-        # filtering silently returns 0 results. We do course filtering in Python
-        # (in chat_service.py) instead.
+        # NOTE: Fetch extra candidates (100) so Python course filtering doesn't run out
+        # of matches if vectors from other courses score higher.
+        fetch_limit = max(limit * 10, 100)
         payload = {
             "vector": query_vector,
-            "topK": limit,
+            "topK": fetch_limit,
             "returnValues": False,
             "returnMetadata": "all"
         }
         
-        print(f"🔎 [VECTORIZE SEARCH] Index: {settings.CLOUDFLARE_VECTORIZE_INDEX} | topK: {limit} | course_id: {course_id}", flush=True)
+        print(f"🔎 [VECTORIZE SEARCH] Index: {settings.CLOUDFLARE_VECTORIZE_INDEX} | topK: {fetch_limit} | course_id: {course_id}", flush=True)
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
