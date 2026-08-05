@@ -49,10 +49,22 @@ def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
                         payyans_converter = Payyans()
                         
                         # Apply Payyans to convert the garbled FML ASCII back to pristine Unicode
-                        # "karthika" mapping is the most standard for FML/ML-TT fonts used in SCERT PDFs
-                        converted_text = payyans_converter.ASCII2Unicode(raw_text, "karthika")
+                        converted_text = ""
+                        try:
+                            converted_text = payyans_converter.ASCII2Unicode(raw_text, "ML-TTKarthika")
+                        except Exception as main_e:
+                            print(f"⚠️ [Extractor] ML-TTKarthika failed: {main_e}. Trying other maps...", flush=True)
+                            for m in payyans_converter.listAvailableMaps():
+                                try:
+                                    out_text = payyans_converter.ASCII2Unicode(raw_text, m)
+                                    if out_text and out_text.strip() and out_text != raw_text:
+                                        converted_text = out_text
+                                        print(f"⚠️ [Extractor] Success with map {m}", flush=True)
+                                        break
+                                except:
+                                    continue
                         
-                        if converted_text and converted_text.strip():
+                        if converted_text and converted_text.strip() and converted_text.strip() != raw_text.strip():
                             text = converted_text.strip()
                         else:
                             text = raw_text.strip()
