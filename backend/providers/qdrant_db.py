@@ -9,15 +9,16 @@ from providers.base import BaseVectorDBProvider
 class QdrantVectorDBProvider(BaseVectorDBProvider):
     """Implementation for Qdrant Vector DB."""
     
+    COLLECTION_NAME = "courses_collection"
+    
     def __init__(self):
         self.client = QdrantClient(host=settings.QDRANT_HOST, port=settings.QDRANT_PORT)
         self.async_client = AsyncQdrantClient(host=settings.QDRANT_HOST, port=settings.QDRANT_PORT)
 
     def ensure_collection(self, user_id: str):
-        collection_name = f"user_{user_id.replace('-', '_')}"
-        if not self.client.collection_exists(collection_name):
+        if not self.client.collection_exists(self.COLLECTION_NAME):
             self.client.create_collection(
-                collection_name=collection_name,
+                collection_name=self.COLLECTION_NAME,
                 vectors_config=VectorParams(
                     size=settings.EMBEDDING_DIMENSION, 
                     distance=Distance.COSINE
@@ -33,7 +34,6 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
         chunks: List[Dict[str, Any]], 
         embeddings: List[List[float]]
     ):
-        collection_name = f"user_{user_id.replace('-', '_')}"
         self.ensure_collection(user_id)
         
         points = []
@@ -54,7 +54,7 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
             )
             
         self.client.upsert(
-            collection_name=collection_name,
+            collection_name=self.COLLECTION_NAME,
             points=points
         )
 
@@ -65,14 +65,10 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
         user_id: Optional[str] = None, 
         limit: int = 5
     ) -> List[Dict[str, Any]]:
-        if not user_id:
-            raise ValueError("Anonymous chat (missing user_id) is not supported with the current Qdrant collection architecture.")
-            
-        collection_name = f"user_{user_id.replace('-', '_')}"
         
         try:
             results = await self.async_client.search(
-                collection_name=collection_name,
+                collection_name=self.COLLECTION_NAME,
                 query_vector=query_vector,
                 limit=limit,
                 query_filter=Filter(
@@ -95,10 +91,9 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
             return []
 
     async def delete_document_vectors(self, user_id: str, document_id: str):
-        collection_name = f"user_{user_id.replace('-', '_')}"
         try:
             await self.async_client.delete(
-                collection_name=collection_name,
+                collection_name=self.COLLECTION_NAME,
                 points_selector=Filter(
                     must=[
                         FieldCondition(
