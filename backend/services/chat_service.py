@@ -155,7 +155,7 @@ class ChatService:
                 
                 # Use relevant chunks (or fall back to top chunks if all are below threshold)
                 if relevant_chunks:
-                    chunks = relevant_chunks[:10]  # Cap at 10 best chunks
+                    chunks = relevant_chunks[:3]  # Cap at 3 best chunks
                 elif course_filtered_chunks:
                     # All chunks scored below threshold — use top 3 as fallback but warn
                     chunks = course_filtered_chunks[:3]
