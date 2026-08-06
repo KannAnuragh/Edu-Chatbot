@@ -67,46 +67,69 @@ class GeminiClient:
             yield f"\n\n[Gemini API Error: {error_details}\n\nPlease ensure you are using a valid Google AI Studio API Key (starting with 'AIzaSy...') in your `backend/.env` file and restart the backend container using `docker compose restart backend`.]"
             return
         
-        try:
-            print(f"🤖 [GEMINI API CALL] Model: {settings.LLM_MODEL} | Prompt length: {len(prompt)} chars (~{len(prompt) // 4} tokens)", flush=True)
-            
-            response_stream = await client.aio.models.generate_content_stream(
-                model=settings.LLM_MODEL,
-                contents=prompt,
-                config=self._get_config()
-            )
-            
-            total_output_chars = 0
-            last_chunk = None
-            async for chunk in response_stream:
-                if chunk.text:
-                    total_output_chars += len(chunk.text)
-                    yield chunk.text
-                last_chunk = chunk
-            
-            # Extract and log token usage from the final chunk's usage_metadata
-            if last_chunk and hasattr(last_chunk, 'usage_metadata') and last_chunk.usage_metadata:
-                usage = last_chunk.usage_metadata
-                input_tokens = getattr(usage, 'prompt_token_count', 0) or 0
-                output_tokens = getattr(usage, 'candidates_token_count', 0) or 0
-                total_tokens = getattr(usage, 'total_token_count', 0) or (input_tokens + output_tokens)
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                print(f"🤖 [GEMINI API CALL] Model: {settings.LLM_MODEL} | Prompt length: {len(prompt)} chars (~{len(prompt) // 4} tokens) (Attempt {attempt+1}/{max_retries})", flush=True)
                 
-                print(f"📊 [GEMINI TOKEN USAGE]", flush=True)
-                print(f"   Input tokens:  {input_tokens}", flush=True)
-                print(f"   Output tokens: {output_tokens}", flush=True)
-                print(f"   Total tokens:  {total_tokens}", flush=True)
-            else:
-                # Fallback to character-based estimation
-                input_tokens_est = len(prompt) // 4
-                output_tokens_est = total_output_chars // 4
-                print(f"📊 [GEMINI TOKEN USAGE (estimated)]", flush=True)
-                print(f"   Input:  ~{input_tokens_est} tokens ({len(prompt)} chars)", flush=True)
-                print(f"   Output: ~{output_tokens_est} tokens ({total_output_chars} chars)", flush=True)
-                print(f"   Total:  ~{input_tokens_est + output_tokens_est} tokens", flush=True)
+                response_stream = await client.aio.models.generate_content_stream(
+                    model=settings.LLM_MODEL,
+                    contents=prompt,
+                    config=self._get_config()
+                )
+                
+                total_output_chars = 0
+                last_chunk = None
+                async for chunk in response_stream:
+                    if chunk.text:
+                        total_output_chars += len(chunk.text)
+                        yield chunk.text
+                    last_chunk = chunk
+                
+                # Extract and log token usage from the final chunk's usage_metadata
+                if last_chunk and hasattr(last_chunk, 'usage_metadata') and last_chunk.usage_metadata:
+                    usage = last_chunk.usage_metadata
+                    input_tokens = getattr(usage, 'prompt_token_count', 0) or 0
+                    output_tokens = getattr(usage, 'candidates_token_count', 0) or 0
+                    total_tokens = getattr(usage, 'total_token_count', 0) or (input_tokens + output_tokens)
                     
-        except Exception as e:
-            print(f"Gemini Streaming Error: {e}")
-            yield f"\n\n[Error generating response: {str(e)}]"
+                    print(f"📊 [GEMINI TOKEN USAGE]", flush=True)
+                    print(f"   Input tokens:  {input_tokens}", flush=True)
+                    print(f"   Output tokens: {output_tokens}", flush=True)
+                    print(f"   Total tokens:  {total_tokens}", flush=True)
+                else:
+                    # Fallback to character-based estimation
+                    input_tokens_est = len(prompt) // 4
+                    output_tokens_est = total_output_chars // 4
+                    print(f"📊 [GEMINI TOKEN USAGE (estimated)]", flush=True)
+                    print(f"   Input:  ~{input_tokens_est} tokens ({len(prompt)} chars)", flush=True)
+                    print(f"   Output: ~{output_tokens_est} tokens ({total_output_chars} chars)", flush=True)
+                    print(f"   Total:  ~{input_tokens_est + output_tokens_est} tokens", flush=True)
+                
+                # Success, break retry loop
+                break
+
+            except Exception as e:
+                err_str = str(e)
+                if "429" in err_str or "Too Many Requests" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                    if attempt < max_retries - 1:
+                        import asyncio
+                        wait_seconds = (attempt + 1) * 3
+                        print(f"⚠️ [GEMINI 429 RATE LIMIT] Rate limit hit. Retrying in {wait_seconds}s... (Attempt {attempt+1}/{max_retries})", flush=True)
+                        await asyncio.sleep(wait_seconds)
+                        continue
+                    else:
+                        print(f"❌ [GEMINI 429 RATE LIMIT EXCEEDED] Max retries reached for 429: {e}", flush=True)
+                        yield "\n\n[Google Gemini Rate Limit Exceeded (429): You have exceeded the free tier quota for this model. Please wait a few seconds before asking another question, or switch to `gemini-2.0-flash-lite` or `gemini-1.5-flash` in `backend/.env`.]"
+                        return
+                elif "404" in err_str or "Not Found" in err_str:
+                    print(f"❌ [GEMINI 404 MODEL NOT FOUND] Invalid model name '{settings.LLM_MODEL}': {e}", flush=True)
+                    yield f"\n\n[Google Gemini Error (404 Not Found): The model name `{settings.LLM_MODEL}` does not exist in Google AI Studio. Please check `LLM_MODEL` in your `backend/.env` file and set it to a valid model such as `gemini-2.0-flash`, `gemini-2.0-flash-lite`, or `gemini-1.5-flash`.]"
+                    return
+                else:
+                    print(f"Gemini Streaming Error: {e}")
+                    yield f"\n\n[Error generating response: {err_str}]"
+                    return
 
     def generate_response(self, prompt: str) -> str:
         """Generate a complete response synchronously."""
