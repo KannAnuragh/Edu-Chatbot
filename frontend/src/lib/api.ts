@@ -215,6 +215,18 @@ export class ApiClient {
     return this.request(`/courses/${courseId}/conversations/${conversationId}`);
   }
 
+  async deleteConversation(courseId: string, conversationId: string) {
+    return this.request(`/courses/${courseId}/conversations/${conversationId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async deleteAllConversations(courseId: string) {
+    return this.request(`/courses/${courseId}/conversations`, {
+      method: "DELETE",
+    });
+  }
+
   async chatStream(
     courseId: string,
     message: string,

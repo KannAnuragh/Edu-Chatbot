@@ -6,7 +6,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { api } from "@/lib/api";
 import { type Project, type Conversation } from "@/types";
 import { cn } from "@/lib/utils";
-import { Plus, LayoutDashboard, User, LogOut, MessageSquare, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
+import { Plus, LayoutDashboard, User, LogOut, MessageSquare, ChevronLeft, ChevronRight, ArrowLeft, Trash2 } from "lucide-react";
 
 interface SidebarProps {
   activeProjectId?: string;
@@ -28,13 +28,13 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
     if (activeProjectId) {
       loadConversations(activeProjectId);
     }
-  }, [activeProjectId]);
+  }, [activeProjectId, activeConvId]);
 
   const loadConversations = async (projectId: string) => {
     try {
       setLoading(true);
       const data = await api.getConversations(projectId);
-      setConversations(data.conversations);
+      setConversations(data.conversations || []);
     } catch (error) {
       console.error("Failed to load conversations", error);
     } finally {
@@ -50,6 +50,35 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
   const handleNewChat = () => {
     router.push(`/dashboard/project/${activeProjectId}`);
     if (isMobileOpen && onMobileClose) onMobileClose();
+  };
+
+  const handleDeleteConversation = async (e: React.MouseEvent, convId: string) => {
+    e.stopPropagation();
+    if (!activeProjectId) return;
+    if (!window.confirm("Are you sure you want to delete this chat history?")) return;
+
+    try {
+      await api.deleteConversation(activeProjectId, convId);
+      setConversations((prev) => prev.filter((c) => c.id !== convId));
+      if (activeConvId === convId) {
+        router.push(`/dashboard/project/${activeProjectId}`);
+      }
+    } catch (error) {
+      console.error("Failed to delete conversation", error);
+    }
+  };
+
+  const handleClearAllHistory = async () => {
+    if (!activeProjectId) return;
+    if (!window.confirm("Are you sure you want to clear all chat history for this course?")) return;
+
+    try {
+      await api.deleteAllConversations(activeProjectId);
+      setConversations([]);
+      router.push(`/dashboard/project/${activeProjectId}`);
+    } catch (error) {
+      console.error("Failed to clear chat history", error);
+    }
   };
 
   const groupedConversations = useMemo(() => {
@@ -121,16 +150,27 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
               minimized ? "text-[10px] justify-center text-center mt-2" : "text-[11px] justify-between px-2"
             )}>
               {!minimized && <span>Chats</span>}
-              <button 
-                onClick={handleNewChat}
-                className={cn(
-                  "hover:text-emerald transition-colors bg-white rounded-md border border-border shadow-sm flex items-center justify-center",
-                  minimized ? "w-8 h-8 mx-auto" : "w-6 h-6"
+              <div className="flex items-center gap-1">
+                {conversations.length > 0 && !minimized && (
+                  <button
+                    onClick={handleClearAllHistory}
+                    className="hover:text-red-600 transition-colors bg-white rounded-md border border-border shadow-sm w-6 h-6 flex items-center justify-center text-muted"
+                    title="Clear All History"
+                  >
+                    <Trash2 size={13} />
+                  </button>
                 )}
-                title="New Chat"
-              >
-                <Plus size={14} />
-              </button>
+                <button 
+                  onClick={handleNewChat}
+                  className={cn(
+                    "hover:text-emerald transition-colors bg-white rounded-md border border-border shadow-sm flex items-center justify-center",
+                    minimized ? "w-8 h-8 mx-auto" : "w-6 h-6"
+                  )}
+                  title="New Chat"
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
             </div>
             
             <div className="space-y-4">
@@ -151,12 +191,12 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
                       {convs.map(conv => {
                         const isActive = activeConvId === conv.id;
                         return (
-                          <button
+                          <div
                             key={conv.id}
                             onClick={() => handleSelectConversation(conv)}
                             title={conv.title}
                             className={cn(
-                              "w-full text-left rounded-lg flex items-center group transition-colors",
+                              "w-full text-left rounded-lg flex items-center group transition-colors cursor-pointer relative",
                               minimized ? "justify-center p-2" : "px-3 py-2 gap-2",
                               isActive 
                                 ? "bg-white text-emerald shadow-sm border border-emerald/10" 
@@ -165,9 +205,18 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
                           >
                             <MessageSquare size={14} className={cn("flex-shrink-0", isActive ? "text-emerald" : "opacity-50")} />
                             {!minimized && (
-                              <span className="truncate pr-2 text-xs font-medium">{conv.title}</span>
+                              <>
+                                <span className="truncate pr-6 text-xs font-medium flex-1">{conv.title}</span>
+                                <button
+                                  onClick={(e) => handleDeleteConversation(e, conv.id)}
+                                  className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 rounded transition-all flex-shrink-0"
+                                  title="Delete Chat"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </>
                             )}
-                          </button>
+                          </div>
                         );
                       })}
                     </div>

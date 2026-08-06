@@ -112,27 +112,49 @@ async def delete_conversation(
     course_id: UUID,
     conversation_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
-    """Delete a conversation."""
-    if current_user.role == "student":
+    """Delete a specific conversation and all its messages."""
+    if current_user and current_user.role == "student":
         if str(course_id) not in getattr(current_user, "enrolled_course_ids", []):
             raise HTTPException(status_code=403, detail="Not enrolled in this course")
             
-    result = await db.execute(
-        select(Conversation)
-        .where(
-            Conversation.id == conversation_id,
-            Conversation.course_id == course_id,
-            Conversation.user_id == current_user.id
-        )
+    query = select(Conversation).where(
+        Conversation.id == conversation_id,
+        Conversation.course_id == course_id,
     )
+    if current_user:
+        query = query.where(Conversation.user_id == current_user.id)
+        
+    result = await db.execute(query)
     conversation = result.scalar_one_or_none()
     
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
         
     await db.delete(conversation)
+    await db.commit()
+
+
+@router.delete("/conversations", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_all_conversations(
+    course_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
+    """Delete all conversations for a course."""
+    if current_user and current_user.role == "student":
+        if str(course_id) not in getattr(current_user, "enrolled_course_ids", []):
+            raise HTTPException(status_code=403, detail="Not enrolled in this course")
+            
+    query = select(Conversation).where(Conversation.course_id == course_id)
+    if current_user:
+        query = query.where(Conversation.user_id == current_user.id)
+        
+    result = await db.execute(query)
+    conversations = result.scalars().all()
+    for conv in conversations:
+        await db.delete(conv)
     await db.commit()
 
 

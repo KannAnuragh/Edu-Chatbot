@@ -160,8 +160,41 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
     }
   };
 
+  const handleDeleteCurrentChat = async () => {
+    if (!window.confirm("Are you sure you want to delete this chat history?")) return;
+    try {
+      if (conversationId) {
+        await api.deleteConversation(projectId, conversationId);
+      }
+      setMessages([]);
+      setConversationId(null);
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("conv");
+        window.history.replaceState({}, "", url.toString());
+      }
+    } catch (error) {
+      console.error("Failed to delete chat history", error);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-canvas relative">
+      {/* Top action bar when conversation has messages */}
+      {messages.length > 0 && (
+        <div className="px-4 md:px-6 py-2 border-b border-border/60 bg-white/50 backdrop-blur-sm flex justify-between items-center z-10 flex-shrink-0">
+          <span className="text-xs text-muted font-medium">Active Chat Thread</span>
+          <button
+            onClick={handleDeleteCurrentChat}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-muted hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-border/40"
+            title="Delete Chat History"
+          >
+            <Trash2 size={13} />
+            <span>Clear Chat</span>
+          </button>
+        </div>
+      )}
+
       {/* Messages Area */}
       <div
         ref={scrollRef}
