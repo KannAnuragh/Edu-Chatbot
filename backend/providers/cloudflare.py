@@ -340,7 +340,7 @@ class CloudflareLLMProvider(BaseLLMProvider):
         payload = {
             "messages": self._build_messages(prompt),
             "stream": True,
-            "max_tokens": 1024,
+            "max_tokens": 4096,
             "temperature": 0.1,
             "repetition_penalty": 1.2,
         }
@@ -397,7 +397,7 @@ class CloudflareLLMProvider(BaseLLMProvider):
         payload = {
             "messages": self._build_messages(prompt),
             "stream": False,
-            "max_tokens": 1024,
+            "max_tokens": 4096,
             "temperature": 0.3,
             "repetition_penalty": 1.15,
         }
