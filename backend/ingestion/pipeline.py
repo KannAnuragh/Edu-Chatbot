@@ -135,5 +135,10 @@ def run_ingestion_pipeline(
     t7 = time.time()
     print(f"⏱️ [Pipeline] Vector DB upsert took {t7 - t6:.2f} seconds.")
     
+    # Calculate estimated token cost based on total embedded characters
+    total_chars_embedded = sum(len(c["text"]) for c in valid_chunks) if valid_chunks else 0
+    estimated_tokens = total_chars_embedded // 4
+    print(f"💰 [Pipeline] Estimated token cost for '{filename}': ~{estimated_tokens} tokens", flush=True)
+    
     print(f"⏱️ [Pipeline] Total ingestion time: {t7 - t0:.2f} seconds.")
     return page_count, language
