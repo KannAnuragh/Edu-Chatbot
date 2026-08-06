@@ -32,7 +32,15 @@ def clean_indic_text(text: str) -> str:
     # 3. Strip invisible formatting artifacts and control characters
     text = re.sub(r'[\u200B\uFEFF\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]', '', text)
 
-    # 4. Collapse multiple whitespaces/newlines into single spaces
+    # 4. Post-process lingering FML legacy font artifacts if present
+    if re.search(r'[≥‰ƒ∏™‚√≠‡∑›]', text):
+        try:
+            from ingestion.smc_fml_converter import convert_fml_to_unicode
+            text = convert_fml_to_unicode(text)
+        except Exception:
+            pass
+
+    # 5. Collapse multiple whitespaces/newlines into single spaces
     text = re.sub(r'\s+', ' ', text).strip()
 
     return text

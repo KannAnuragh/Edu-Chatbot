@@ -43,14 +43,18 @@ def extract_text_from_file(file_path: str) -> Tuple[List[Tuple[int, str]], int]:
                 has_legacy_gibberish = bool(re.search(r'[ß∂Ø∏°±ƒ]', raw_text))
                 
                 if has_legacy_gibberish:
-                    print(f"⚠️ [Extractor] Legacy FML gibberish detected on page {i}. Routing through Payyans...", flush=True)
+                    print(f"⚠️ [Extractor] Legacy FML gibberish detected on page {i}. Routing through SMC Regex Engine...", flush=True)
                     try:
-                        from libindic.payyans import Payyans
-                        payyans_converter = Payyans()
-                        text = payyans_converter.ASCII2Unicode(raw_text, "ML-TTKarthika").strip()
+                        from ingestion.smc_fml_converter import convert_fml_to_unicode
+                        text = convert_fml_to_unicode(raw_text).strip()
                     except Exception as e:
-                        print(f"⚠️ [Extractor] Payyans conversion failed for page {i}: {e}", flush=True)
-                        text = raw_text.strip()
+                        print(f"⚠️ [Extractor] SMC conversion failed for page {i}: {e}. Falling back to Payyans...", flush=True)
+                        try:
+                            from libindic.payyans import Payyans
+                            payyans_converter = Payyans()
+                            text = payyans_converter.ASCII2Unicode(raw_text, "ML-TTKarthika").strip()
+                        except Exception:
+                            text = raw_text.strip()
                 else:
                     text = raw_text.strip()
                 

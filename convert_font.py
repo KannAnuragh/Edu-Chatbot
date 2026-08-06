@@ -61,6 +61,18 @@ def convert_pdf_with_gemini(pdf_path: str, output_txt_path: str):
                 )
                 
                 text = response.text.strip()
+                
+                # Apply SMC post-processing to clean any leftover FML legacy font symbols (≥, ‰, ƒ, ∏, ™, etc.)
+                try:
+                    from backend.ingestion.smc_fml_converter import convert_fml_to_unicode
+                    text = convert_fml_to_unicode(text)
+                except ImportError:
+                    try:
+                        from ingestion.smc_fml_converter import convert_fml_to_unicode
+                        text = convert_fml_to_unicode(text)
+                    except Exception:
+                        pass
+                        
                 f.write(f"{text}\n\n")
                 f.flush() # Ensure it's saved immediately
                 
