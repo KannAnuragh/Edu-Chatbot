@@ -26,65 +26,160 @@ def fix_malayalam_pdf_font_artifacts(text: str) -> str:
     text = re.sub(r'്ര([ക-ഹ])', r'\1്ര', text)
     text = re.sub(r'സ്്ര', 'സ്ത്ര', text)
 
-    # 2. Fix specific legacy font mapping glitches (Case study & common words)
-    text = re.sub(r'കസ്േ\s*ല്ലാന്റഡയ്യഡ്േ|കസ്േ\s*ല്ലഡി|കസ്േ', 'കേസ് സ്റ്റഡി', text)
-    text = re.sub(r'കസിേനെ', 'കേസിനെ', text)
-    text = re.sub(r'എഗ്ല്', 'എന്ത്', text)
-    text = re.sub(r'എഗ്ലിന്', 'എന്തിന്', text)
-    text = re.sub(r'പവയ്യപാേയിെ\s*്|പവയ്യപാേയിെ', 'പേപ്പറായി', text)
-    text = re.sub(r'്രപസെേഷനായി', 'പ്രസന്റേഷനായി', text)
-    text = re.sub(r'അപൂയ്യവ', 'അപൂർവ്വ', text)
-    text = re.sub(r'വറിേന്തതുമായ|വറിേന്തതുമായി', 'വൈവിധ്യമുള്ളതുമായ', text)
-    text = re.sub(r'സന്നീയ്യണ', 'സങ്കീർണ്ണ', text)
-    text = re.sub(r'മണ്േപ്പറഞ്ഞ', 'മേൽപ്പറഞ്ഞ', text)
-    text = re.sub(r'സി≤ിണ്ണ', 'സിദ്ധിച്ച', text)
-    text = re.sub(r'⁄രെ', 'ജ്ഞരെ', text)
-    text = re.sub(r'നΩുടെ', 'നമ്മുടെ', text)
-    text = re.sub(r'സμയ്യശിണ്ണ്', 'സന്ദർശിച്ച്', text)
-    text = re.sub(r'്രപവയ്യസ്ഥന', 'പ്രവർത്തന', text)
-    text = re.sub(r'ബാന്ന്', 'ബാങ്ക്', text)
-    text = re.sub(r'മായ്യത്ഥറ്റ്', 'മാർക്കറ്റ്', text)
-    text = re.sub(r'രഖേപ്പെടു', 'രേഖപ്പെടു', text)
-    text = re.sub(r'വായ്യസ്ഥാവിനിമയം', 'വാർത്താവിനിമയം', text)
-    text = re.sub(r'ദനൈംദിന', 'ദൈനംദിന', text)
-    text = re.sub(r'വളയ്യന്നിരി', 'വളർന്നിരി', text)
-    text = re.sub(r'ഒന്തെറേ', 'ഒട്ടേറെ', text)
-    text = re.sub(r'സാബ്ബസ്ഥിക', 'സാമ്പത്തിക', text)
+    # 2. Specific Symbol mapping
+    text = re.sub(r'Ω', 'മ്മ', text)
+    text = re.sub(r'≤', 'ദ്ധ', text)
+    text = re.sub(r'μ', 'ന്ദ', text)
+    text = re.sub(r'⁄', 'ജ്ഞ', text)
+    text = re.sub(r'≈', 'ള്ള', text)
+    text = re.sub(r'˛', ' - ', text)
+    text = re.sub(r'‘', 'ന്ധ', text) # ഗാ‘ിജി -> ഗാന്ധിജി
 
-    # 3. Structural font artifact replacements
-    text = re.sub(r'ത്മ([ളൾൽനമതകറ])', r'ങ്ങ\1', text)
-    text = re.sub(r'്രപയാേഗ', 'പ്രയോഗ', text)
-    text = re.sub(r'്രപതിഭാസ', 'പ്രതിഭാസ', text)
-    text = re.sub(r'്രപശ്ന', 'പ്രശ്ന', text)
-    text = re.sub(r'്രപ്രകിയ', 'പ്രക്രിയ', text)
-    text = re.sub(r'്രപായാേഗിക', 'പ്രായോഗിക', text)
-    text = re.sub(r'്രപദേശ', 'പ്രദേശ', text)
+    # 3. Consonant Glitch Mappings
+    text = re.sub(r'യ്യ', 'ർ', text) # വളയ്യ -> വളർ, അവയ്യ -> അവർ
+    
+    # "ന്ത" mapped to "ഗ്ല" in some contexts
+    text = re.sub(r'ഇഗ്ല്യ', 'ഇന്ത്യ', text)
+    text = re.sub(r'ചിഗ്ല', 'ചിന്ത', text)
+    text = re.sub(r'സ്വാതഗ്ര്ല്യ', 'സ്വാതന്ത്ര്യ', text)
+    text = re.sub(r'അഗ്ലർ', 'അന്തർ', text) # യ്യ became ർ already
+    text = re.sub(r'അഗ്ലയ്യ', 'അന്തർ', text) 
+    text = re.sub(r'അത്യഗ്ലാ', 'അത്യന്താ', text)
+    
+    # "ട്ട" mapped to "ന്ത" in some contexts
+    text = re.sub(r'കുന്തി', 'കുട്ടി', text)
+    text = re.sub(r'പന്തിക', 'പട്ടിക', text)
+    text = re.sub(r'ബ്രിന്തീഷ്', 'ബ്രിട്ടീഷ്', text)
+    text = re.sub(r'മുന്നാന്തുേ', 'മുന്നോട്ട്', text)
+    text = re.sub(r'ന്തുേ', 'ട്ട്', text)
 
-    # 4. Suffix and Case marker corrections
-    text = re.sub(r'ത്ഥുറിണ്ണും|ത്ഥുറിണ്ണ്', 'ക്കുറിച്ചും', text)
-    text = re.sub(r'ത്ഥാനാണ്', 'ക്കാനാണ്', text)
-    text = re.sub(r'ത്ഥുക', 'ക്കുക', text)
-    text = re.sub(r'ത്ഥും', 'ക്കും', text)
-    text = re.sub(r'ത്ഥുന്ന', 'ക്കുന്ന', text)
-    text = re.sub(r'ത്ഥാറുണ്ട്', 'ക്കാറുണ്ട്', text)
-    text = re.sub(r'ത്ഥാെണ്ടി', 'ക്കൊണ്ടി', text)
-    text = re.sub(r'ത്ഥിണ്ണ്', 'ച്ചിട്ട്', text)
-
-    # 5. Noun ending & inflection corrections
+    # "ത്ത" mapped to "സ്ഥ" in suffixes
     text = re.sub(r'സ്ഥിെെ', 'ത്തിന്റെ', text)
     text = re.sub(r'സ്ഥിന്', 'ത്തിന്', text)
     text = re.sub(r'സ്ഥിലൂടെ', 'ത്തിലൂടെ', text)
     text = re.sub(r'സ്ഥെ', 'ത്തെ', text)
     text = re.sub(r'സ്ഥിണ്', 'ത്തിൽ', text)
     text = re.sub(r'സ്ഥരം', 'ത്തരം', text)
+    text = re.sub(r'പ്പെടുസ്ഥ', 'പ്പെടുത്ത', text)
+    text = re.sub(r'വളർസ്ഥ', 'വളർത്ത', text) # യ്യ already -> ർ
+    text = re.sub(r'ചലുെസ്ഥി', 'ചെലുത്തി', text)
+    text = re.sub(r'ഭാഗസ്ഥ്', 'ഭാഗത്ത്', text)
+    text = re.sub(r'രംഗസ്ഥും', 'രംഗത്തും', text)
+    text = re.sub(r'രംഗസ്ഥ്', 'രംഗത്ത്', text)
+    text = re.sub(r'ദേശസ്ഥു', 'ദേശത്തു', text)
+
+    # "ക്ക" mapped to "ത്ഥ"
+    text = re.sub(r'ത്ഥുക', 'ക്കുക', text)
+    text = re.sub(r'ത്ഥാൻ', 'ക്കാൻ', text)
+    text = re.sub(r'ത്ഥാനാണ്', 'ക്കാനാണ്', text)
+    text = re.sub(r'ത്ഥും', 'ക്കും', text)
+    text = re.sub(r'ത്ഥുന്ന', 'ക്കുന്ന', text)
+    text = re.sub(r'ത്ഥാറു', 'ക്കാറു', text)
+    text = re.sub(r'ത്ഥാെണ്ടി', 'ക്കൊണ്ടി', text)
+    text = re.sub(r'ത്ഥിണ്ണ്', 'ച്ചിട്ട്', text)
+    text = re.sub(r'ത്ഥുറി', 'ക്കുറി', text)
+    text = re.sub(r'ആത്ഥി', 'ആക്കി', text)
+    text = re.sub(r'ഇരിത്ഥും', 'ഇരിക്കും', text)
+    text = re.sub(r'ഇരിത്ഥണം', 'ഇരിക്കണം', text)
+    text = re.sub(r'ഉണ്ടാത്ഥി', 'ഉണ്ടാക്കി', text)
+    text = re.sub(r'ത്ഥ്', 'ക്ക്', text)
+    text = re.sub(r'ത്ഥാരിണ്', 'ക്കാരിൽ', text)
+    text = re.sub(r'മായ്യത്ഥറ്റ്', 'മാർക്കറ്റ്', text)
+
+    # "ച്ച" mapped to "ണ്ണ"
+    text = re.sub(r'ശഖേരിണ്ണ്', 'ശേഖരിച്ച്', text)
+    text = re.sub(r'പഠിണ്ണ', 'പഠിച്ച', text)
+    text = re.sub(r'ഉപയാേഗിണ്ണ്', 'ഉപയോഗിച്ച്', text)
+    text = re.sub(r'ഉപയോഗിണ്ണ്', 'ഉപയോഗിച്ച്', text)
+    text = re.sub(r'നിർദേശിണ്ണു', 'നിർദ്ദേശിച്ചു', text)
+    text = re.sub(r'ശ്രമിണ്ണ', 'ശ്രമിച്ച', text)
+    text = re.sub(r'ചിന്തിണ്ണ', 'ചിന്തിച്ച', text)
+    text = re.sub(r'വളർണ്ണ', 'വളർച്ച', text)
+    text = re.sub(r'ചർണ്ണ', 'ചർച്ച', text)
+    text = re.sub(r'നിയമിണ്ണു', 'നിയമിച്ചു', text)
+    text = re.sub(r'സിദ്ധർണ്ണ', 'സിദ്ധിച്ച', text) # സിദ്ധിച്ചു / സിദ്ധിച്ച
+    text = re.sub(r'ഉൾണ്ണർ', 'ഉൾച്ചേർ', text)
+
+    # 4. Suffix and Case marker corrections
+    text = re.sub(r'ണ്ണ്', 'ച്ച്', text) 
+    text = re.sub(r'ണ്(\s|[.,!?”]|$)', r'ൽ\1', text)
+    text = re.sub(r'ന്റ(\s|[.,!?”]|$)', r'ൻ\1', text)
+
+    # 5. Word Specific Corrections
+    text = re.sub(r'കസ്േ\s*ല്ലാന്റഡയ്യഡ്േ|കസ്േ\s*ല്ലഡി|കസ്േ', 'കേസ് സ്റ്റഡി', text)
+    text = re.sub(r'ക ത ല്ലാന്റഡർഡേ', 'സ്റ്റാൻഡേർഡ്', text) # ക ത ല്ലാന്റഡയ്യഡ്േ -> ക ത ല്ലാന്റഡർഡേ
+    text = re.sub(r'ല്ലാന്റഡർഡേ', 'സ്റ്റാൻഡേർഡ്', text)
+    text = re.sub(r'കസിേനെ', 'കേസിനെ', text)
+    text = re.sub(r'എഗ്ല്\?', 'എന്ത്?', text)
+    text = re.sub(r'എഗ്ലിന്\?', 'എന്തിന്?', text)
+    text = re.sub(r'പവർപാേയിെ\s*്|പവർപാേയിെ', 'പവർപോയിന്റ്', text)
+    text = re.sub(r'പ്രസെേഷനായി', 'പ്രസന്റേഷനായി', text)
+    text = re.sub(r'അപൂർവവും|അപൂർവ', 'അപൂർവ്വ', text)
+    text = re.sub(r'വറിേന്തതുമായ|വറിേന്തതുമായി', 'വേറിട്ടതുമായ', text)
+    text = re.sub(r'വറിേ', 'വേറി', text)
+    text = re.sub(r'സന്നീയ്യണ|സന്നീർണ', 'സങ്കീർണ്ണ', text)
+    text = re.sub(r'മണ്േപ്പറഞ്ഞ', 'മേൽപ്പറഞ്ഞ', text)
+    text = re.sub(r'സിദ്ധർണ്ണ|സി≤ിണ്ണ', 'സിദ്ധിച്ച', text)
+    text = re.sub(r'ബാന്ന്', 'ബാങ്ക്', text)
+    text = re.sub(r'രഖേപ്പെടു', 'രേഖപ്പെടു', text)
+    text = re.sub(r'വാർത്താവിനിമയം', 'വാർത്താവിനിമയം', text)
+    text = re.sub(r'ദനൈംദിന', 'ദൈനംദിന', text)
+    text = re.sub(r'വളർന്നിരി', 'വളർന്നിരി', text)
+    text = re.sub(r'ഒന്തെറേ', 'ഒട്ടേറെ', text)
+    text = re.sub(r'സാബ്ബസ്ഥിക|സാബ്ബത്തിക', 'സാമ്പത്തിക', text)
+    text = re.sub(r'കാച്ചഗ്രേിെെ', 'കോൺഗ്രസിന്റെ', text)
+    text = re.sub(r'നാഷണൽ', 'നാഷണൽ', text)
+    text = re.sub(r'വിദ്യായ്യഥിയായിരിക്കുബ്ബോൾ', 'വിദ്യാർത്ഥിയായിരിക്കുമ്പോൾ', text)
+    text = re.sub(r'താഴിെലുകൾ', 'തൊഴിലുകൾ', text)
+    text = re.sub(r'ഗുണകരമാകുമന്ന്െ', 'ഗുണകരമാകുമെന്ന്', text)
+    text = re.sub(r'അദ്ദഹേം', 'അദ്ദേഹം', text)
+    text = re.sub(r'ഇസ്ഥരത്തിൽ|ഇത്തരത്തിൽ', 'ഇത്തരത്തിൽ', text)
+    text = re.sub(r'പ്രതിരോധിക്കാമന്ന്െ', 'പ്രതിരോധിക്കാമെന്ന്', text)
+    text = re.sub(r'അഭിപ്രായപ്പെന്തു', 'അഭിപ്രായപ്പെട്ടു', text)
+    text = re.sub(r'വാർധാ', 'വാർധാ', text)
+    text = re.sub(r'ഉണ്പ്പാദന|ഉൽപ്പാദന', 'ഉൽപ്പാദന', text)
+    text = re.sub(r'ഏതെന്നിലും', 'ഏതെങ്കിലും', text)
+    text = re.sub(r'വണേം', 'വേണം', text)
+    text = re.sub(r'നൽകണമന്നുെം', 'നൽകണമെന്നും', text)
+    text = re.sub(r'വിഭാവനചയ്തെ', 'വിഭാവനചെയ്ത', text)
+    text = re.sub(r'സാക്കിയ്യ', 'സാക്കിർ', text)
+    text = re.sub(r'നതൃേത്വത്തിൽ', 'നേതൃത്വത്തിൽ', text)
+    text = re.sub(r'ദശീയവിദ്യോഭ്യാസം|ദശീയേവിദ്യാഭ്യാസം', 'ദേശീയവിദ്യാഭ്യാസം', text)
+    text = re.sub(r'തന്നിന്തു-ള്ള-ത്|തന്നിട്ടുള്ളത്', 'തന്നിട്ടുള്ളത്', text)
+    text = re.sub(r'അഗ്ലർദേശീയത', 'അന്തർദേശീയത', text)
+    text = re.sub(r'പാരബ്ബര്യ', 'പാരമ്പര്യ', text)
+    text = re.sub(r'വേദൈശികമധോവിത്വം', 'വൈദേശികമേധാവിത്വം', text)
+    text = re.sub(r'എതിർപ്പ്', 'എതിർപ്പ്', text)
+    text = re.sub(r'മനിലാക്കിയത്', 'മനസ്സിലാക്കിയത്', text)
+    text = re.sub(r'പസ്ഥാെബ്ബതാം', 'പത്തൊമ്പതാം', text)
+    text = re.sub(r'ചർച്ചചെøുന്നത്', 'ചർച്ചചെയ്യുന്നത്', text)
+    text = re.sub(r'ദശീൈയക്യേത്തിന്', 'ദേശീയൈക്യത്തിന്', text)
+    text = re.sub(r'വഴിയാെരുക്കി', 'വഴിയൊരുക്കി', text)
+    text = re.sub(r'അത്യന്താപേക്ഷിതമാണന്ന്െ', 'അത്യന്താപേക്ഷിതമാണെന്ന്', text)
+
+    # Structural font artifact replacements
+    text = re.sub(r'ത്മ([ളൾൽനമതകറ])', r'ങ്ങ\1', text)
+    text = re.sub(r'പ്രയാേഗ', 'പ്രയോഗ', text)
+    text = re.sub(r'പ്രതിഭാസ', 'പ്രതിഭാസ', text)
+    text = re.sub(r'പ്രശ്ന', 'പ്രശ്ന', text)
+    text = re.sub(r'പ്രക്രിയ', 'പ്രക്രിയ', text)
+    text = re.sub(r'പ്രായാേഗിക', 'പ്രായോഗിക', text)
+    text = re.sub(r'പ്രദേശ', 'പ്രദേശ', text)
 
     # 6. Pre-base & post-base vowel matras re-ordering
     text = re.sub(r'ാേ', 'ോ', text)
-
-    # Clean stray hyphenations
-    text = re.sub(r'-\s*യുഃ', 'യുള്ള', text)
-    text = re.sub(r'-\s*⁄രെ', 'ജ്ഞരെ', text)
+    text = re.sub(r'ിെ', 'ി', text)
+    text = re.sub(r'െൈ', 'ൈ', text)
+    
+    # Clean up leftovers
+    text = re.sub(r'-\s*യുള്ള', 'യുള്ള', text)
+    text = re.sub(r'-\s*ജ്ഞരെ', 'ജ്ഞരെ', text)
     text = re.sub(r'˛', ' - ', text)
+    
+    # Specific fix for "ചെøുന്നത്" FML leftover
+    text = re.sub(r'ചെøുന്നത്', 'ചെയ്യുന്നത്', text)
+    text = re.sub(r'നയ്യക്കോഴ്ച', 'നേർക്കാഴ്ച', text)
+    text = re.sub(r'സായ്യവലൗകിക', 'സാർവ്വലൗകിക', text)
 
     return text
 
