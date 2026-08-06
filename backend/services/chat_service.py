@@ -22,7 +22,7 @@ from providers.factory import llm_client
 from core.database import async_session_factory
 
 # Minimum cosine similarity score to consider a chunk relevant
-RELEVANCE_THRESHOLD = 0.3
+RELEVANCE_THRESHOLD = 0.35
 
 
 class ChatService:
@@ -153,15 +153,12 @@ class ChatService:
                         
                 print(f"🐛 [CHAT DEBUG] Chunks above threshold ({RELEVANCE_THRESHOLD}): {len(relevant_chunks)}", flush=True)
                 
-                # Use relevant chunks (or fall back to top chunks if all are below threshold)
+                # Only use chunks that exceed the relevance threshold to prevent hallucination from unrelated material
                 if relevant_chunks:
                     chunks = relevant_chunks[:3]  # Cap at 3 best chunks
-                elif course_filtered_chunks:
-                    # All chunks scored below threshold — use top 3 as fallback but warn
-                    chunks = course_filtered_chunks[:3]
-                    print(f"⚠️ [RELEVANCE] All {len(course_filtered_chunks)} chunks scored below threshold {RELEVANCE_THRESHOLD}. Using top 3 as fallback.", flush=True)
                 else:
                     chunks = []
+                    print(f"⚠️ [RELEVANCE] All retrieved chunks scored below threshold {RELEVANCE_THRESHOLD}. Treating context as empty.", flush=True)
                 
                 # User requested to remove citations below the chat
                 sources = []
