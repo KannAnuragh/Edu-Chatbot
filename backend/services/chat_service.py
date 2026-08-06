@@ -127,11 +127,16 @@ class ChatService:
                 # STRICT FALLBACK VERIFICATION: Filter out any chunks that don't match the course_id
                 # This guarantees isolation even if the vector DB index has an issue.
                 course_filtered_chunks = []
+                target_course_id = str(course_id).lower().strip() if course_id else ""
                 for c in raw_chunks:
-                    chunk_course_id = c.get('course_id')
-                    if chunk_course_id and str(chunk_course_id) != str(course_id).lower().strip():
-                        print(f"⚠️ [WARNING] Vector DB returned chunk from wrong course! Expected {course_id}, got {chunk_course_id}. Ignoring.", flush=True)
-                        continue
+                    # Support both top-level and nested metadata structures
+                    chunk_course_id = c.get('course_id') or c.get('metadata', {}).get('course_id') if isinstance(c.get('metadata'), dict) else c.get('course_id')
+                    
+                    if chunk_course_id:
+                        normalized_chunk_course_id = str(chunk_course_id).lower().strip()
+                        if target_course_id and normalized_chunk_course_id != target_course_id:
+                            print(f"⚠️ [WARNING] Vector DB returned chunk from wrong course! Expected {target_course_id}, got {normalized_chunk_course_id}. Ignoring.", flush=True)
+                            continue
                     course_filtered_chunks.append(c)
                 
                 print(f"🐛 [CHAT DEBUG] Chunks remaining after course filter: {len(course_filtered_chunks)}", flush=True)
