@@ -166,11 +166,22 @@ def fix_malayalam_pdf_font_artifacts(text: str) -> str:
     text = re.sub(r'പ്രായാേഗിക', 'പ്രായോഗിക', text)
     text = re.sub(r'പ്രദേശ', 'പ്രദേശ', text)
 
-    # 6. Pre-base & post-base vowel matras re-ordering
+    # SCERT Specific Ligature mappings
+    text = re.sub(r'ഗ്ല', 'ന്ത', text)
+    text = re.sub(r'കുന്തി', 'കുട്ടി', text)
+    text = re.sub(r'സ്ഥ', 'ത്ത', text)
+    text = re.sub(r'ത്ഥ', 'ക്ക', text)
+    text = re.sub(r'ണ്ണ', 'ച്ച', text)
+    
+    # Pre-base & post-base vowel matras re-ordering
     text = re.sub(r'ാേ', 'ോ', text)
     text = re.sub(r'ിെ', 'ി', text)
     text = re.sub(r'െൈ', 'ൈ', text)
     
+    # Ra-vattu (്ര) Reordering: move ്ര from before consonant to after it
+    # E.g. ്രപിയെ -> പ്രിയെ
+    text = re.sub(r'്ര([ക-ഹ])', r'\1്ര', text)
+
     # Clean up leftovers
     text = re.sub(r'-\s*യുള്ള', 'യുള്ള', text)
     text = re.sub(r'-\s*ജ്ഞരെ', 'ജ്ഞരെ', text)
