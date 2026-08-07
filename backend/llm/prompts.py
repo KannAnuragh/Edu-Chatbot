@@ -71,7 +71,7 @@ def build_rag_prompt(
         question=question
     )
 
-QUERY_OPTIMIZATION_PROMPT = """You are a search engine optimization expert. Your task is to convert the user's latest message into a highly effective English search query for a vector database.
+QUERY_OPTIMIZATION_PROMPT = """You are a search engine optimization expert. Your task is to convert the user's latest message into a highly effective search query for a vector database.
 
 Conversation History:
 {history}
@@ -81,7 +81,7 @@ User's Latest Message: {query}
 Instructions:
 1. If the message is a greeting or casual chat, just return the exact message.
 2. If the message refers to previous context (e.g. "tell me more about it"), include the relevant context in the search query.
-3. The query MUST be in the exact same language and script as the user's latest message. Do NOT translate it to English.
+3. The query MUST be in the exact same language and script as the user's latest message. Do NOT translate it.
 4. ONLY return the optimized query string. Do NOT add quotes or explanations.
 
 Optimized Query:"""
