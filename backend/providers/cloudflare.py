@@ -259,15 +259,10 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
             "vector": query_vector,
             "topK": fetch_limit,
             "returnValues": False,
-            "returnMetadata": "all",
-            "filter": {
-                "course_id": {
-                    "$in": [str(course_id).lower().strip(), "GLOBAL"]
-                }
-            }
+            "returnMetadata": "all"
         }
         
-        print(f"🔎 [VECTORIZE SEARCH] Index: {settings.CLOUDFLARE_VECTORIZE_INDEX} | topK: {fetch_limit} | course_id filter: {str(course_id).lower().strip()} OR GLOBAL", flush=True)
+        print(f"🔎 [VECTORIZE SEARCH] Index: {settings.CLOUDFLARE_VECTORIZE_INDEX} | topK: {fetch_limit} | course_id filter: REMOVED FOR NOW", flush=True)
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
