@@ -173,19 +173,35 @@ def fix_malayalam_pdf_font_artifacts(text: str) -> str:
     text = re.sub(r'ത്ഥ', 'ക്ക', text)
     text = re.sub(r'ണ്ണ', 'ച്ച', text)
     
+    # Specific FML Symbol Mappings observed in SCERT PDFs
+    text = re.sub(r'∏', 'പ്പ', text)
+    text = re.sub(r'≈', 'ള്ള', text)
+    text = re.sub(r'≥', 'ന്റ', text)
+    text = re.sub(r'≠', 'ണ്ട', text)
+    text = re.sub(r'ƒ', 'ൾ', text)
+    text = re.sub(r'™', 'ഞ്ഞ', text)
+    text = re.sub(r'˛', ' - ', text)
+    text = re.sub(r'•', 'ഗ്ല', text)
+    text = re.sub(r'√', 'ല്ല', text)
+    text = re.sub(r'∑', 'ന്ന', text)
+    
     # Pre-base & post-base vowel matras re-ordering
     text = re.sub(r'ാേ', 'ോ', text)
     text = re.sub(r'ിെ', 'ി', text)
     text = re.sub(r'െൈ', 'ൈ', text)
     
+    # Direct word patches for common extracted glitches
+    text = re.sub(r'്രപിയെ|്രപിയെപ്പന്ത', 'പ്രിയപ്പെട്ട', text)
+    text = re.sub(r'സമൂഹസ്ഥത്ഥുറിെണ്ണു', 'സമൂഹത്തെക്കുറിച്ച്', text)
+    
     # Ra-vattu (്ര) Reordering: move ്ര from before consonant to after it
-    # E.g. ്രപിയെ -> പ്രിയെ
+    # E.g. ്രപിയെ -> പ്രിയെ (if not caught above)
     text = re.sub(r'്ര([ക-ഹ])', r'\1്ര', text)
 
     # Clean up leftovers
     text = re.sub(r'-\s*യുള്ള', 'യുള്ള', text)
     text = re.sub(r'-\s*ജ്ഞരെ', 'ജ്ഞരെ', text)
-    text = re.sub(r'˛', ' - ', text)
+    text = re.sub(r'\$', '', text) # Remove isolated $ bullet points from PDF
     
     # Specific fix for "ചെøുന്നത്" FML leftover
     text = re.sub(r'ചെøുന്നത്', 'ചെയ്യുന്നത്', text)
