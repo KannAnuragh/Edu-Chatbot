@@ -257,7 +257,10 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
             "vector": query_vector,
             "topK": fetch_limit,
             "returnValues": False,
-            "returnMetadata": "all"
+            "returnMetadata": "all",
+            "filter": {
+                "course_id": str(course_id).lower().strip()
+            }
         }
         
         print(f"🔎 [VECTORIZE SEARCH] Index: {settings.CLOUDFLARE_VECTORIZE_INDEX} | topK: {fetch_limit} | course_id: {course_id}", flush=True)
