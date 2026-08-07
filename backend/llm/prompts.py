@@ -24,11 +24,12 @@ Previous Conversation:
 Question: {question}
 
 INSTRUCTIONS FOR ANSWERING:
-1. SINGLE LANGUAGE MATCHING: Check the language of the user's question. If the question is in Malayalam, respond ONLY in Malayalam. If in English, respond ONLY in English. NEVER output dual-language answers, translations, or language headers like "In Malayalam:" or "In English:".
-2. STRICT GROUNDING: Answer strictly and exclusively using ONLY the Reference Material provided above. Do NOT use any outside knowledge or pre-trained facts.
-3. STRICT FALLBACK: If the answer to the question is NOT present in or cannot be deduced from the Reference Material, respond ONLY with: "I do not have enough information in the course material to answer this question." (or its translation in the requested language). Do NOT answer questions about external topics (like ChatGPT, Claude, etc.) that are not in the Reference Material.
-4. DIRECT ANSWER WITHOUT PREAMBLES OR CITATIONS: Output ONLY the direct answer text. NEVER include preambles like "According to the Reference Materials:", "Based on the context:", or language tags. NEVER include document labels like "(Document 1)". Start IMMEDIATELY with the answer text.
-5. SPELLING & QUALITY: Correct all typos, font glitches, and spelling mistakes found in the Reference Material so your final output is in perfect, standard, flawless spelling and grammar."""
+1. STRICT LANGUAGE MATCHING (CRITICAL): You MUST answer in the EXACT SAME LANGUAGE as the Question. If the Question is in English, you MUST translate the relevant Malayalam Reference Material into English and provide a detailed, comprehensive English response. Do NOT answer in Malayalam if the user asks in English.
+2. DETAILED & COMPREHENSIVE RESPONSE: Provide a thorough, detailed answer. Do not give a single-sentence summary if the reference text contains more details. Extract and explain all relevant points from the reference material.
+3. STRICT GROUNDING: Answer strictly and exclusively using ONLY the Reference Material provided above. Do NOT use any outside knowledge or pre-trained facts.
+4. STRICT FALLBACK: If the answer to the question is NOT present in or cannot be deduced from the Reference Material, respond ONLY with: "I do not have enough information in the course material to answer this question." (or its translation in the requested language).
+5. DIRECT ANSWER WITHOUT PREAMBLES: Output ONLY the direct answer text. NEVER include preambles like "According to the Reference Materials:", "Based on the context:", or language tags. Start IMMEDIATELY with the answer text.
+6. SPELLING & QUALITY: Correct all typos, font glitches, and spelling mistakes found in the Reference Material so your final output is in perfect, standard, flawless spelling and grammar."""
 
 def build_rag_prompt(
     context_chunks: list,

@@ -8,6 +8,7 @@ Includes relevance filtering, detailed chunk logging, and token usage tracking.
 import json
 import time
 import asyncio
+import re
 from uuid import UUID
 from typing import AsyncGenerator, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,12 +18,26 @@ from models.conversation import Conversation, Message, MessageRole
 from services.retrieval_service import RetrievalService
 from llm.prompts import build_rag_prompt
 from providers.factory import llm_client
-
+from ingestion.pipeline import fix_malayalam_pdf_font_artifacts
 
 from core.database import async_session_factory
 
 # Minimum cosine similarity score to consider a chunk relevant
 RELEVANCE_THRESHOLD = 0.20
+
+def sanitize_chunk_text(text: str) -> str:
+    """Dynamically clean chunk text before sending to LLM to remove PDF extraction artifacts."""
+    if not text:
+        return ""
+    # 1. Remove long numerical FML artifacts (like 12345678901234567890...)
+    text = re.sub(r'[0-9]{15,}', '', text)
+    # 2. Remove repeating SCERT PDF headers and footers
+    text = re.sub(r'സാമൂഹ്യശാസ്[്രത]*ം.*?സംസ്കാരവും ദശീേയതയും', '', text)
+    # 3. Apply the dynamic font artifact fixer (in case chunks were embedded BEFORE the new pipeline)
+    text = fix_malayalam_pdf_font_artifacts(text)
+    # 4. Clean up any remaining multiple spaces left by deletions
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
 
 class ChatService:
@@ -165,12 +180,15 @@ class ChatService:
                 
                 # Log ALL chunks with full text
                 for idx, c in enumerate(chunks, 1):
+                    # Sanitize the chunk text dynamically before feeding to LLM
+                    clean_text = sanitize_chunk_text(c.get('text', ''))
+                    c['text'] = clean_text  # Update the chunk so build_rag_prompt uses the clean version
+                    
                     score = c.get('score', 0.0)
                     print(f"\n  📄 CHUNK #{idx} | Score: {score:.4f} | File: {c.get('filename')} | Page: {c.get('page_number')}", flush=True)
                     print(f"  {'─' * 60}", flush=True)
-                    chunk_text = str(c.get('text', ''))
                     # Log full chunk text
-                    for line in chunk_text.split('\n'):
+                    for line in clean_text.split('\n'):
                         print(f"    {line}", flush=True)
                     print(f"  {'─' * 60}", flush=True)
                 
