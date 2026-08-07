@@ -15,6 +15,17 @@ async def create_users():
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         print("Database schema initialized.")
+        
+        # --- Auto Migrations ---
+        from sqlalchemy import text
+        try:
+            await conn.execute(text("ALTER TABLE documents ADD COLUMN is_global BOOLEAN NOT NULL DEFAULT FALSE;"))
+            print("✅ Migration: Successfully added 'is_global' column to 'documents' table!")
+        except Exception as e:
+            if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
+                pass
+            else:
+                print(f"⚠️ Migration Error (is_global): {e}")
     async with async_session_factory() as session:
         # Create Admin
         admin_email = settings.DEFAULT_ADMIN_EMAIL
