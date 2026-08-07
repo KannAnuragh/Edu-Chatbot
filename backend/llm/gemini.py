@@ -51,10 +51,10 @@ class GeminiClient:
 
         return self._client
         
-    def _get_config(self) -> types.GenerateContentConfig:
+    def _get_config(self, system_instruction: str = None) -> types.GenerateContentConfig:
         """Get standard generation config."""
         return types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
+            system_instruction=system_instruction,
             temperature=0.0,
             max_output_tokens=4096,
         )
@@ -75,7 +75,7 @@ class GeminiClient:
                 response_stream = await client.aio.models.generate_content_stream(
                     model=settings.LLM_MODEL,
                     contents=prompt,
-                    config=self._get_config()
+                    config=self._get_config(system_instruction=SYSTEM_PROMPT)
                 )
                 
                 total_output_chars = 0
@@ -131,7 +131,7 @@ class GeminiClient:
                     yield f"\n\n[Error generating response: {err_str}]"
                     return
 
-    def generate_response(self, prompt: str) -> str:
+    def generate_response(self, prompt: str, system_instruction: str = None) -> str:
         """Generate a complete response synchronously."""
         client = self._get_client()
         if not client:
@@ -142,7 +142,7 @@ class GeminiClient:
             response = client.models.generate_content(
                 model=settings.LLM_MODEL,
                 contents=prompt,
-                config=self._get_config()
+                config=self._get_config(system_instruction=system_instruction)
             )
             
             # Log token usage
