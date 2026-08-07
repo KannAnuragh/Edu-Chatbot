@@ -121,7 +121,12 @@ class ChatService:
                 
                 # Run synchronous generation in a thread so we don't block the async event loop
                 optimized_query = await asyncio.to_thread(llm_client.generate_response, opt_prompt)
-                optimized_query = optimized_query.strip()
+                
+                if not optimized_query:
+                    optimized_query = message_text
+                else:
+                    optimized_query = optimized_query.strip()
+                    
                 t_opt_end = time.time()
                 print(f"⏱️ [QUERY OPTIMIZATION] Took {t_opt_end - t_opt_start:.2f}s | Original: '{message_text}' | Optimized: '{optimized_query}'", flush=True)
 
