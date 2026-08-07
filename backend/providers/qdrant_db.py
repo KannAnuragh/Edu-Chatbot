@@ -88,15 +88,7 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
             results = await self.async_client.search(
                 collection_name=self.COLLECTION_NAME,
                 query_vector=query_vector,
-                limit=limit,
-                query_filter=Filter(
-                    must=[
-                        FieldCondition(
-                            key="course_id",
-                            match=MatchValue(value=str(course_id))
-                        )
-                    ]
-                )
+                limit=limit
             )
             
             print(f"🐛 [QDRANT DEBUG] Search returned {len(results)} hits.", flush=True)

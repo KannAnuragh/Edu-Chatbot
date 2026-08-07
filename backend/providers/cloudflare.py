@@ -257,13 +257,10 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
             "vector": query_vector,
             "topK": fetch_limit,
             "returnValues": False,
-            "returnMetadata": "all",
-            "filter": {
-                "course_id": str(course_id).lower().strip()
-            }
+            "returnMetadata": "all"
         }
         
-        print(f"🔎 [VECTORIZE SEARCH] Index: {settings.CLOUDFLARE_VECTORIZE_INDEX} | topK: {fetch_limit} | course_id: {course_id}", flush=True)
+        print(f"🔎 [VECTORIZE SEARCH] Index: {settings.CLOUDFLARE_VECTORIZE_INDEX} | topK: {fetch_limit} (course filter removed)", flush=True)
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -281,15 +278,6 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
             # Debug: Log raw response structure
             matches_raw = data.get("result", {}).get("matches", [])
             print(f"🔎 [VECTORIZE RAW] Got {len(matches_raw)} raw matches from Cloudflare Vectorize", flush=True)
-
-            if not matches_raw:
-                print(f"⚠️ [VECTORIZE DEBUG] 0 matches found with course_id filter. Trying without filter to diagnose...", flush=True)
-                payload_no_filter = payload.copy()
-                payload_no_filter.pop("filter", None)
-                debug_resp = await client.post(url, headers=_get_cf_headers(), json=payload_no_filter, timeout=15.0)
-                if debug_resp.is_success:
-                    debug_matches = debug_resp.json().get("result", {}).get("matches", [])
-                    print(f"⚠️ [VECTORIZE DEBUG] Unfiltered search returned {len(debug_matches)} matches. If this is >0, your PDFs lack the course_id metadata. Re-upload them!", flush=True)
                         
             if matches_raw:
                 # Log first match structure for debugging
