@@ -36,6 +36,7 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
     ):
         self.ensure_collection(user_id)
         
+        clean_course_id = str(course_id).lower().strip()
         points = []
         for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
             points.append(
@@ -43,8 +44,8 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
                     id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"{document_id}_chunk_{i}")),
                     vector=embedding,
                     payload={
-                        "course_id": str(course_id),
-                        "document_id": str(document_id),
+                        "course_id": clean_course_id,
+                        "document_id": str(document_id).lower().strip(),
                         "filename": str(filename),
                         "page_number": int(chunk["page_number"]),
                         "text": str(chunk["text"]),
@@ -65,7 +66,7 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
         user_id: Optional[str] = None, 
         limit: int = 5
     ) -> List[Dict[str, Any]]:
-        
+        clean_course_id = str(course_id).lower().strip()
         try:
             # DEBUG: Check collection count
             try:
@@ -76,10 +77,10 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
                 course_count = await self.async_client.count(
                     collection_name=self.COLLECTION_NAME,
                     count_filter=Filter(
-                        must=[FieldCondition(key="course_id", match=MatchValue(value=str(course_id)))]
+                        must=[FieldCondition(key="course_id", match=MatchValue(value=clean_course_id))]
                     )
                 )
-                print(f"🐛 [QDRANT DEBUG] Total points for course {course_id}: {course_count.count}", flush=True)
+                print(f"🐛 [QDRANT DEBUG] Total points for course {clean_course_id}: {course_count.count}", flush=True)
             except Exception as e:
                 print(f"🐛 [QDRANT DEBUG] Failed to get count: {e}", flush=True)
 
@@ -93,7 +94,7 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
                     must=[
                         FieldCondition(
                             key="course_id",
-                            match=MatchValue(value=str(course_id))
+                            match=MatchValue(value=clean_course_id)
                         )
                     ]
                 )

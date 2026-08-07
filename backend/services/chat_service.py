@@ -130,7 +130,7 @@ class ChatService:
                 target_course_id = str(course_id).lower().strip() if course_id else ""
                 for c in raw_chunks:
                     # Support both top-level and nested metadata structures
-                    chunk_course_id = c.get('course_id') or c.get('metadata', {}).get('course_id') if isinstance(c.get('metadata'), dict) else c.get('course_id')
+                    chunk_course_id = c.get('course_id') or (c.get('metadata', {}).get('course_id') if isinstance(c.get('metadata'), dict) else None)
                     
                     if chunk_course_id:
                         normalized_chunk_course_id = str(chunk_course_id).lower().strip()
