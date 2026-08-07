@@ -6,7 +6,7 @@ import os
 from uuid import UUID
 from typing import List
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks, Form
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -41,6 +41,7 @@ async def upload_document(
     course_id: UUID,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    is_global: bool = Form(False),
     db: AsyncSession = Depends(get_db),
     admin_user: User = Depends(get_current_admin),
 ):
@@ -63,6 +64,7 @@ async def upload_document(
         file_size=0,
         status=DocumentStatus.PENDING,
         course_id=course_id,
+        is_global=is_global,
         user_id=admin_user.id,
     )
     db.add(document)
@@ -109,6 +111,7 @@ async def bulk_upload_documents(
     course_id: UUID,
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
+    is_global: bool = Form(False),
     db: AsyncSession = Depends(get_db),
     admin_user: User = Depends(get_current_admin),
 ):
@@ -134,6 +137,7 @@ async def bulk_upload_documents(
             file_size=0,
             status=DocumentStatus.PENDING,
             course_id=course_id,
+            is_global=is_global,
             user_id=admin_user.id,
         )
         db.add(document)

@@ -64,7 +64,8 @@ def process_document_sync(document_id: str) -> bool:
             filename=document.filename,
             user_id=str(document.user_id),
             course_id=str(document.course_id),
-            document_id=str(document.id)
+            document_id=str(document.id),
+            is_global=document.is_global
         )
         
         # 5. Update document with success

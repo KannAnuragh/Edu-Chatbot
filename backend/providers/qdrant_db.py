@@ -32,18 +32,21 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
         document_id: str, 
         filename: str,
         chunks: List[Dict[str, Any]], 
-        embeddings: List[List[float]]
+        embeddings: List[List[float]],
+        is_global: bool = False
     ):
         self.ensure_collection(user_id)
         
         points = []
+        effective_course_id = "GLOBAL" if is_global else str(course_id)
+        
         for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
             points.append(
                 PointStruct(
                     id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"{document_id}_chunk_{i}")),
                     vector=embedding,
                     payload={
-                        "course_id": str(course_id),
+                        "course_id": effective_course_id,
                         "document_id": str(document_id),
                         "filename": str(filename),
                         "page_number": int(chunk["page_number"]),
@@ -88,7 +91,19 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
             results = await self.async_client.search(
                 collection_name=self.COLLECTION_NAME,
                 query_vector=query_vector,
-                limit=limit
+                limit=limit,
+                query_filter=Filter(
+                    should=[
+                        FieldCondition(
+                            key="course_id",
+                            match=MatchValue(value=str(course_id))
+                        ),
+                        FieldCondition(
+                            key="course_id",
+                            match=MatchValue(value="GLOBAL")
+                        )
+                    ]
+                )
             )
             
             print(f"🐛 [QDRANT DEBUG] Search returned {len(results)} hits.", flush=True)

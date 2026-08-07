@@ -177,12 +177,14 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
         document_id: str, 
         filename: str,
         chunks: List[Dict[str, Any]], 
-        embeddings: List[List[float]]
+        embeddings: List[List[float]],
+        is_global: bool = False
     ):
         url = f"{self._get_base_url()}/upsert"
         
         vectors = []
         clean_course_id = str(course_id).lower().strip()
+        effective_course_id = "GLOBAL" if is_global else clean_course_id
         clean_doc_id = str(document_id).lower().strip()
         
         for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
@@ -190,7 +192,7 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
                 "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{clean_doc_id}_chunk_{i}")).replace("-", ""),
                 "values": embedding,
                 "metadata": {
-                    "course_id": clean_course_id,
+                    "course_id": effective_course_id,
                     "document_id": clean_doc_id,
                     "filename": str(filename),
                     "page_number": int(chunk["page_number"]),
@@ -257,10 +259,15 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
             "vector": query_vector,
             "topK": fetch_limit,
             "returnValues": False,
-            "returnMetadata": "all"
+            "returnMetadata": "all",
+            "filter": {
+                "course_id": {
+                    "$in": [str(course_id).lower().strip(), "GLOBAL"]
+                }
+            }
         }
         
-        print(f"🔎 [VECTORIZE SEARCH] Index: {settings.CLOUDFLARE_VECTORIZE_INDEX} | topK: {fetch_limit} (course filter removed)", flush=True)
+        print(f"🔎 [VECTORIZE SEARCH] Index: {settings.CLOUDFLARE_VECTORIZE_INDEX} | topK: {fetch_limit} | course_id filter: {str(course_id).lower().strip()} OR GLOBAL", flush=True)
         
         async with httpx.AsyncClient() as client:
             response = await client.post(

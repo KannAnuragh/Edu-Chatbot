@@ -246,7 +246,8 @@ def run_ingestion_pipeline(
     filename: str, 
     user_id: str, 
     course_id: str, 
-    document_id: str
+    document_id: str,
+    is_global: bool = False
 ) -> Tuple[int, str]:
     """
     Run the full ingestion pipeline.
@@ -308,7 +309,8 @@ def run_ingestion_pipeline(
             document_id=document_id,
             filename=filename,
             chunks=valid_chunks,
-            embeddings=valid_embeddings
+            embeddings=valid_embeddings,
+            is_global=is_global
         )
     else:
         print(f"⚠️ [Pipeline] No valid chunks remaining to upsert for {filename}.", flush=True)

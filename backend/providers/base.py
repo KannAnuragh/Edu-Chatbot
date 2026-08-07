@@ -18,7 +18,8 @@ class BaseVectorDBProvider:
         document_id: str, 
         filename: str,
         chunks: List[Dict[str, Any]], 
-        embeddings: List[List[float]]
+        embeddings: List[List[float]],
+        is_global: bool = False
     ):
         raise NotImplementedError
 

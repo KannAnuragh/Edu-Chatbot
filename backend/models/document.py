@@ -5,7 +5,7 @@ SQLAlchemy Models — Document.
 import uuid
 import enum
 from datetime import datetime
-from sqlalchemy import String, Integer, DateTime, Enum, ForeignKey
+from sqlalchemy import String, Integer, DateTime, Enum, ForeignKey, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from core.database import Base
@@ -37,6 +37,7 @@ class Document(Base):
     course_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
     )
+    is_global: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
