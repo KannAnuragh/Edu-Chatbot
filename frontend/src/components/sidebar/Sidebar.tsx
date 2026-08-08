@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useAuth } from "@/providers/AuthProvider";
 import { api } from "@/lib/api";
 import { type Project, type Conversation } from "@/types";
@@ -22,6 +22,7 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
   const { user, logout } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const activeConvId = searchParams.get("conv");
 
   useEffect(() => {
@@ -43,12 +44,22 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
   };
 
   const handleSelectConversation = (conv: Conversation) => {
-    router.push(`/dashboard/project/${activeProjectId}?conv=${conv.id}`);
+    const url = `/dashboard/project/${activeProjectId}?conv=${conv.id}`;
+    if (pathname?.endsWith("/admin")) {
+      router.push(url);
+    } else {
+      router.replace(url);
+    }
     if (isMobileOpen && onMobileClose) onMobileClose();
   };
 
   const handleNewChat = () => {
-    router.push(`/dashboard/project/${activeProjectId}`);
+    const url = `/dashboard/project/${activeProjectId}`;
+    if (pathname?.endsWith("/admin")) {
+      router.push(url);
+    } else {
+      router.replace(url);
+    }
     if (isMobileOpen && onMobileClose) onMobileClose();
   };
 
@@ -61,7 +72,7 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
       await api.deleteConversation(activeProjectId, convId);
       setConversations((prev) => prev.filter((c) => c.id !== convId));
       if (activeConvId === convId) {
-        router.push(`/dashboard/project/${activeProjectId}`);
+        router.replace(`/dashboard/project/${activeProjectId}`);
       }
     } catch (error) {
       console.error("Failed to delete conversation", error);
@@ -75,7 +86,7 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
     try {
       await api.deleteAllConversations(activeProjectId);
       setConversations([]);
-      router.push(`/dashboard/project/${activeProjectId}`);
+      router.replace(`/dashboard/project/${activeProjectId}`);
     } catch (error) {
       console.error("Failed to clear chat history", error);
     }
