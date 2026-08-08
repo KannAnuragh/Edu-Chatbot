@@ -261,13 +261,15 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
                 <div className="text-[10px] text-muted capitalize">{user.role}</div>
               </div>
             )}
-            <button 
-              onClick={logout}
-              className="p-1.5 text-muted hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
-              title="Log out"
-            >
-              <LogOut size={16} />
-            </button>
+            {user.role === 'admin' && (
+              <button 
+                onClick={logout}
+                className="p-1.5 text-muted hover:text-red-500 rounded-lg hover:bg-red-50 transition-colors"
+                title="Log out"
+              >
+                <LogOut size={16} />
+              </button>
+            )}
           </div>
         ) : (
           <button
