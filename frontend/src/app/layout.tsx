@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Inter, Space_Grotesk, JetBrains_Mono, Outfit } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/providers/AuthProvider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk" });
+const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
 const jetBrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono" });
 
 export const metadata: Metadata = {
@@ -27,7 +28,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`min-h-screen bg-background text-foreground antialiased ${inter.variable} ${spaceGrotesk.variable} ${jetBrainsMono.variable} font-sans`}>
+      <body className={`min-h-screen bg-background text-foreground antialiased ${inter.variable} ${spaceGrotesk.variable} ${outfit.variable} ${jetBrainsMono.variable} font-sans`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

@@ -2,10 +2,11 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Send, Paperclip, Trash2 } from "lucide-react";
+import { Send, Paperclip, Trash2, HelpCircle, BookOpen, GraduationCap } from "lucide-react";
 import { api } from "@/lib/api";
 import { type Message, type SourceReference, type SSEEvent, type Conversation } from "@/types";
 import MessageBubble from "./MessageBubble";
+import EtherealAvatar from "./EtherealAvatar";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
 
@@ -19,33 +20,20 @@ interface ChatPanelProps {
 
 const SUGGESTIONS = [
   {
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-nimbus">
-        <circle cx="12" cy="12" r="10" />
-        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-        <path d="M12 17h.01" />
-      </svg>
-    ),
+    icon: <HelpCircle size={20} className="text-indigo-600" />,
+    iconBg: "bg-indigo-50 border border-indigo-100/80 group-hover:bg-indigo-100/80",
     title: "Explain a concept",
     subtitle: "Break down complex ideas simply",
   },
   {
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-nimbus">
-        <rect x="3" y="3" width="18" height="18" rx="2" />
-        <path d="M9 12l2 2 4-4" />
-      </svg>
-    ),
+    icon: <BookOpen size={20} className="text-teal-600" />,
+    iconBg: "bg-teal-50 border border-teal-100/80 group-hover:bg-teal-100/80",
     title: "Summarize a chapter",
     subtitle: "Get key points from any topic",
   },
   {
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-nimbus">
-        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-      </svg>
-    ),
+    icon: <GraduationCap size={20} className="text-amber-600" />,
+    iconBg: "bg-amber-50 border border-amber-100/80 group-hover:bg-amber-100/80",
     title: "Help me study",
     subtitle: "Quiz me or review important topics",
   },
@@ -62,6 +50,20 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
   const searchParams = useSearchParams();
   const convIdParam = searchParams.get('conv');
   const { user } = useAuth();
+  
+  const firstName = user?.name?.split(" ")[0] || "there";
+  const [greeting, setGreeting] = useState<React.ReactNode>(<>Welcome<br />aboard, {firstName}!</>);
+
+  useEffect(() => {
+    const greetings = [
+      <>Welcome<br />aboard, {firstName}!</>,
+      <>Ready to<br />learn, {firstName}?</>,
+      <>What's on your<br />mind, {firstName}?</>,
+      <>Let's study,<br />{firstName}!</>,
+      <>Hi {firstName},<br />how can I help?</>
+    ];
+    setGreeting(greetings[Math.floor(Math.random() * greetings.length)]);
+  }, [firstName]);
 
   // Notify parent of message presence for top bar logo transition
   useEffect(() => {
@@ -224,66 +226,50 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
     handleSend(title);
   };
 
-  const firstName = user?.name?.split(" ")[0] || "there";
-
   return (
     <div className="flex flex-col h-full relative" style={{ background: "var(--nimbus-bg)" }}>
-      {/* Top action bar when conversation has messages */}
-      {messages.length > 0 && (
-        <div className="px-4 py-2 border-b border-gray-100 bg-white/60 backdrop-blur-sm flex justify-between items-center z-10 flex-shrink-0">
-          <span className="text-xs text-gray-400 font-medium">Active Chat</span>
-          <button
-            onClick={handleDeleteCurrentChat}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-            title="Delete Chat History"
-          >
-            <Trash2 size={13} />
-            <span>Clear</span>
-          </button>
-        </div>
-      )}
 
       {/* Messages Area */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto no-scrollbar px-4 pb-24"
+        className={cn("flex-1 overflow-y-auto no-scrollbar px-4", messages.length === 0 ? "flex flex-col h-full" : "pb-24")}
       >
-        <div className="max-w-lg mx-auto space-y-4 pb-2">
+        <div className={cn("max-w-lg mx-auto w-full", messages.length === 0 ? "flex-1 flex flex-col h-full" : "space-y-4 pb-2")}>
           {messages.length === 0 ? (
-            /* ─── Welcome Screen ─── */
-            <div className="flex flex-col items-center justify-center pt-8 pb-4 animate-fade-in">
-              {/* Animated Orb — smaller and tighter */}
-              <div className="nimbus-orb mb-5" style={{ width: "56px", height: "56px" }} />
+            /* ─── Mindmate-Inspired Welcome Screen (50/50 split) ─── */
+            <div className="flex-1 flex flex-col items-center justify-between animate-fade-in relative z-10 w-full h-full min-h-[calc(100vh-140px)]">
+              
+              {/* Top Section - Hero Section */}
+              <div className="flex-[1.35] flex flex-col items-center justify-end text-center w-full pb-4">
+                <EtherealAvatar />
+                <h2 className="font-display font-medium text-[44px] text-gray-900 leading-[1.05] tracking-[-0.03em] mb-3">
+                  {greeting}
+                </h2>
+                <p className="text-[14px] text-slate-600 font-medium max-w-[270px] leading-relaxed">
+                  Your personal AI study companion for instant answers & summaries.
+                </p>
+              </div>
 
-              {/* Greeting */}
-              <h2 className="font-heading font-bold text-lg text-gray-900 mb-1.5 text-center">
-                Hi {firstName}, how can I help?
-              </h2>
-              <p className="text-sm text-gray-400 mb-5 text-center max-w-[260px]">
-                Ask me anything about your subject.
-              </p>
-
-              {/* Suggestion Cards */}
-              <div className="w-full space-y-2.5 px-1">
+              {/* Bottom Section - Actionable Suggestion Cards Grid */}
+              <div className="flex-1 flex flex-col justify-end w-full pb-[110px] gap-3">
                 {SUGGESTIONS.map((suggestion, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleSuggestionClick(suggestion.title)}
-                    className="nimbus-suggestion-card w-full flex items-center gap-4 bg-white rounded-2xl border border-gray-100 px-5 py-3.5 text-left shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-md hover:border-nimbus/20 group"
-                    style={{ animationDelay: `${idx * 0.08}s` }}
+                    className="w-full flex items-center gap-4 bg-white/90 backdrop-blur-md rounded-2xl border border-gray-200/90 px-5 py-4 text-left shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(28,77,140,0.12)] hover:border-nimbus/40 hover:bg-white hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200 group"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-nimbus-tint flex items-center justify-center flex-shrink-0 group-hover:bg-nimbus/10 transition-colors">
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${suggestion.iconBg}`}>
                       {suggestion.icon}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium text-[14px] text-gray-800 mb-0.5">
+                      <div className="font-semibold text-[15px] text-gray-900 mb-0.5 group-hover:text-nimbus transition-colors">
                         {suggestion.title}
                       </div>
-                      <div className="text-[12px] text-gray-400 leading-snug">
+                      <div className="text-[13px] text-slate-600 font-normal truncate">
                         {suggestion.subtitle}
                       </div>
                     </div>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 group-hover:text-nimbus transition-colors flex-shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 group-hover:text-nimbus group-hover:translate-x-0.5 transition-all flex-shrink-0">
                       <path d="M9 18l6-6-6-6" />
                     </svg>
                   </button>
@@ -324,49 +310,51 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
         </div>
       </div>
 
-      {/* ─── Composer Area — Fixed at bottom ─── */}
-      <div className="absolute bottom-0 left-0 right-0 p-2.5 pt-2 bg-gradient-to-t from-[var(--nimbus-bg)] via-[var(--nimbus-bg)]/95 to-transparent pb-safe z-10">
-        <div className="max-w-lg mx-auto relative flex items-end gap-2 bg-white rounded-2xl shadow-[0_2px_14px_rgba(0,0,0,0.06)] border border-gray-100 p-1.5 px-2 focus-within:border-nimbus/30 focus-within:shadow-[0_2px_18px_rgba(59,107,245,0.08)] transition-all">
+      {/* ─── Composer Area — Fixed at bottom with Floating Send Button (Reference UI) ─── */}
+      <div className="absolute bottom-0 left-0 right-0 p-3 pt-2 bg-gradient-to-t from-[var(--nimbus-bg)] via-[var(--nimbus-bg)]/95 to-transparent pb-safe z-10">
+        <div className="max-w-lg mx-auto flex items-center gap-2">
+          
+          {/* Main Input Box (Rounded Pill) */}
+          <div className="flex-1 flex items-center gap-2 bg-white rounded-full shadow-[0_4px_20px_rgba(0,0,0,0.05)] border border-gray-200/90 px-4 py-1.5 focus-within:border-nimbus/40 transition-all">
+            {onAttachClick && (
+              <button
+                onClick={onAttachClick}
+                className="p-1.5 text-gray-400 hover:text-nimbus hover:bg-nimbus-tint rounded-full transition-colors"
+                title="Attach file"
+              >
+                <Paperclip size={18} />
+              </button>
+            )}
 
-          {/* Attach button */}
-          {onAttachClick && (
-            <button
-              onClick={onAttachClick}
-              className="p-2 text-gray-400 hover:text-nimbus hover:bg-nimbus-tint rounded-xl transition-colors mb-0.5"
-              title="Attach file"
-            >
-              <Paperclip size={19} />
-            </button>
-          )}
+            <textarea
+              ref={textareaRef}
+              value={inputValue}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask me anything..."
+              className="flex-1 max-h-[100px] bg-transparent resize-none outline-none py-2 px-1 text-[15px] leading-relaxed no-scrollbar placeholder:text-gray-400 text-gray-800"
+              rows={1}
+              disabled={isTyping}
+            />
+          </div>
 
-          <textarea
-            ref={textareaRef}
-            value={inputValue}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask me anything..."
-            className="flex-1 max-h-[120px] bg-transparent resize-none outline-none py-2 px-2 text-[15px] leading-relaxed no-scrollbar placeholder:text-gray-400 text-gray-800"
-            rows={1}
-            disabled={isTyping}
-          />
-
-          {/* Send button */}
+          {/* Floating Circular Send Button (Reference UI) */}
           <button
             onClick={() => handleSend()}
             disabled={!inputValue.trim() || isTyping}
             className={cn(
-              "p-2.5 rounded-xl transition-all mb-0.5",
+              "w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 transition-all shadow-md",
               inputValue.trim() && !isTyping
-                ? "bg-nimbus text-white shadow-sm hover:bg-nimbus-deep active:scale-95"
-                : "bg-gray-100 text-gray-300 cursor-not-allowed"
+                ? "bg-nimbus text-white hover:bg-nimbus-deep hover:scale-105 active:scale-95 shadow-nimbus/20"
+                : "bg-gray-200 text-gray-400 cursor-not-allowed"
             )}
           >
-            <Send size={18} />
+            <Send size={18} className="translate-x-0.5" />
           </button>
         </div>
 
         <div className="text-center mt-1.5">
-          <span className="text-[10px] text-gray-400 font-medium tracking-wide opacity-60">
+          <span className="text-[11px] text-slate-500 font-medium tracking-wide">
             Responses may contain inaccuracies. Always verify important information.
           </span>
         </div>

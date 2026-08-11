@@ -96,6 +96,34 @@ class ChatService:
 
                 # Send conversation ID to client immediately
                 yield f"event: meta\ndata: {json.dumps({'conversation_id': str(conversation_id)})}\n\n"
+                
+                # --- FAST PATH FOR SUGGESTION COMMANDS ---
+                message_text_clean = message_text.strip()
+                fast_response = None
+                if message_text_clean == "Explain a concept":
+                    fast_response = "Sure, which concept would you like me to explain?"
+                elif message_text_clean == "Summarize a chapter":
+                    fast_response = "Sure, which chapter would you like me to summarize?"
+                elif message_text_clean == "Help me study":
+                    fast_response = "Sure, should I summarize or create questions based on the topic you want to study?"
+
+                if fast_response:
+                    # Yield token instantly
+                    yield f"event: token\ndata: {json.dumps({'text': fast_response})}\n\n"
+                    
+                    # Save assistant message
+                    assistant_msg = Message(
+                        conversation_id=conversation_id,
+                        role=MessageRole.ASSISTANT,
+                        content=fast_response,
+                        sources=[],
+                    )
+                    db.add(assistant_msg)
+                    await db.commit()
+                    
+                    yield "event: done\ndata: {}\n\n"
+                    return
+                # ----------------------------------------
 
                 # 2.5. Optimize Search Query
                 yield f"event: status\ndata: {json.dumps({'message': 'Optimizing search query...'})}\n\n"

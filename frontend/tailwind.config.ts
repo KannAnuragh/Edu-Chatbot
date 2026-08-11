@@ -22,6 +22,7 @@ const config = {
         sans: ['var(--font-inter)'],
         heading: ['var(--font-space-grotesk)'],
         mono: ['var(--font-jetbrains-mono)'],
+        display: ['var(--font-outfit)'],
       },
       colors: {
         border: "var(--border)",
@@ -87,6 +88,10 @@ const config = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
         "fade-in": {
           "0%": { opacity: "0" },
           "100%": { opacity: "1" },
@@ -119,6 +124,7 @@ const config = {
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "float": "float 4s ease-in-out infinite",
         "fade-in": "fade-in 0.3s ease-out forwards",
         "fade-in-up": "fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         "slide-in-right": "slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards",

@@ -75,27 +75,49 @@ async def list_enrolled_courses(
         from fastapi.responses import JSONResponse
         from services.auth_service import STUDENT_PROFILES
         student_id = current_user.email.split("@")[0]
-        profile = STUDENT_PROFILES.get(student_id)
-        if profile:
-            # Sync the mock courses with live DB titles
-            live_courses = []
+        profile = STUDENT_PROFILES.get(student_id, {})
+        
+        live_courses = []
+        if profile and "courses" in profile:
             for mock_course in profile["courses"]:
                 c_id = mock_course.get("id")
-                # Try to fetch actual course to get latest details
-                actual = await _get_course_response(db, c_id)
+                try:
+                    uuid_obj = UUID(str(c_id))
+                    actual = await _get_course_response(db, uuid_obj)
+                    if actual:
+                        live_courses.append({
+                            "id": str(actual.id),
+                            "title": actual.title,
+                            "description": actual.description or "",
+                            "badge_color": actual.badge_color,
+                            "document_count": actual.document_count,
+                            "created_at": actual.created_at.isoformat()
+                        })
+                except (ValueError, TypeError):
+                    pass
+
+        # Fallback: If no enrolled courses matched, show ALL available courses in DB
+        if not live_courses:
+            all_courses_query = select(Course).order_by(Course.created_at.desc())
+            all_res = await db.execute(all_courses_query)
+            all_db_courses = all_res.scalars().all()
+            for c in all_db_courses:
+                actual = await _get_course_response(db, c.id)
                 if actual:
-                    mock_course["title"] = actual.title
-                    mock_course["description"] = actual.description
-                    mock_course["badge_color"] = actual.badge_color
-                    mock_course["document_count"] = actual.document_count
-                    mock_course["created_at"] = actual.created_at.isoformat()
-                    live_courses.append(mock_course)
-                
-            return JSONResponse({
-                "courses": live_courses,
-                "history": profile["history"],
-                "total": len(live_courses)
-            })
+                    live_courses.append({
+                        "id": str(actual.id),
+                        "title": actual.title,
+                        "description": actual.description or "",
+                        "badge_color": actual.badge_color,
+                        "document_count": actual.document_count,
+                        "created_at": actual.created_at.isoformat()
+                    })
+
+        return JSONResponse({
+            "courses": live_courses,
+            "history": profile.get("history", []),
+            "total": len(live_courses)
+        })
             
     query = (
         select(Course)

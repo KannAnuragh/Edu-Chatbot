@@ -219,7 +219,7 @@ export default function ProjectPage() {
         />
 
         {/* Mobile Header — Nimbus Style */}
-        <div className="flex-shrink-0 px-4 border-b border-gray-100 bg-white/80 backdrop-blur-xl flex items-center justify-between pt-safe z-30 h-14">
+        <div className="flex-shrink-0 px-4 border-b border-transparent flex items-center justify-between pt-safe z-30 h-14" style={{ background: "var(--nimbus-bg)" }}>
           {/* Left: hamburger */}
           <button
             onClick={() => setMobileMenuOpen(true)}
