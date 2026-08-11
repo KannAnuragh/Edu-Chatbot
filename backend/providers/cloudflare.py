@@ -74,6 +74,9 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
 
                         if not response.is_success:
                             print(f"❌ Cloudflare Embedding Error ({response.status_code}): {response.text}", flush=True)
+                            if response.status_code in [401, 403]:
+                                print(f"🚫 Cloudflare Authentication Error ({response.status_code}): Please check CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in .env", flush=True)
+                                response.raise_for_status()
                             if response.status_code in [400, 500]:
                                 # Non-retryable 400 or 500 — break retry loop to trigger single-item fallback
                                 break
@@ -81,6 +84,13 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
 
                         success = True
                         break
+                    except httpx.HTTPStatusError as http_err:
+                        if http_err.response.status_code in [401, 403]:
+                            raise http_err
+                        if attempt == max_retries - 1:
+                            print(f"⚠️ Cloudflare embedding batch attempt failed: {http_err}", flush=True)
+                        else:
+                            time.sleep(1)
                     except (httpx.HTTPError, Exception) as e:
                         if attempt == max_retries - 1:
                             print(f"⚠️ Cloudflare embedding batch attempt failed: {e}", flush=True)
@@ -106,6 +116,10 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
                             if start + dim <= len(data_result) and j < len(indices):
                                 results[indices[j]] = data_result[start:start+dim]
                 else:
+                    if response and response.status_code in [401, 403]:
+                        # Do not attempt single item encoding if authentication failed
+                        raise httpx.HTTPStatusError("Cloudflare Authentication Failed", request=response.request, response=response)
+
                     # Fallback: Process items individually for this batch if batching returned 400/500 or failed
                     print(f"⚠️ Batch of {len(batch)} items failed on Cloudflare AI. Falling back to single-item encoding...", flush=True)
                     for j, single_text in enumerate(batch):
@@ -138,9 +152,18 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
                     
                     if not response.is_success:
                         print(f"❌ Cloudflare Query Embedding Error ({response.status_code}): {response.text}", flush=True)
+                        if response.status_code in [401, 403]:
+                            print(f"🚫 Cloudflare Authentication Error ({response.status_code}): Please check CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in .env", flush=True)
+                            response.raise_for_status()
                         response.raise_for_status()
                     
                     break
+                except httpx.HTTPStatusError as http_err:
+                    if http_err.response.status_code in [401, 403]:
+                        raise http_err
+                    if attempt == max_retries - 1:
+                        raise http_err
+                    time.sleep(1)
                 except (httpx.HTTPError, Exception) as e:
                     if attempt == max_retries - 1:
                         raise e
@@ -259,15 +282,10 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
             "vector": query_vector,
             "topK": fetch_limit,
             "returnValues": False,
-            "returnMetadata": "all",
-            "filter": {
-                "course_id": {
-                    "$in": [str(course_id).lower().strip(), "GLOBAL"]
-                }
-            }
+            "returnMetadata": "all"
         }
         
-        print(f"🔎 [VECTORIZE SEARCH] Index: {settings.CLOUDFLARE_VECTORIZE_INDEX} | topK: {fetch_limit} | course_id filter: {str(course_id).lower().strip()} OR GLOBAL", flush=True)
+        print(f"🔎 [VECTORIZE SEARCH] Index: {settings.CLOUDFLARE_VECTORIZE_INDEX} | topK: {fetch_limit}", flush=True)
         
         async with httpx.AsyncClient() as client:
             response = await client.post(

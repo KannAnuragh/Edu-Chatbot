@@ -2,20 +2,56 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Send, FileText, Bot, User, Trash2 } from "lucide-react";
+import { Send, Paperclip, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { type Message, type SourceReference, type SSEEvent, type Conversation } from "@/types";
 import MessageBubble from "./MessageBubble";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/providers/AuthProvider";
 
 interface ChatPanelProps {
   projectId: string;
   onSourceClick?: (source: SourceReference) => void;
   onAttachClick?: () => void;
   onViewNote?: (content: string, sources?: SourceReference[]) => void;
+  onHasMessagesChange?: (hasMessages: boolean) => void;
 }
 
-export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onViewNote }: ChatPanelProps) {
+const SUGGESTIONS = [
+  {
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-nimbus">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+        <path d="M12 17h.01" />
+      </svg>
+    ),
+    title: "Explain a concept",
+    subtitle: "Break down complex ideas simply",
+  },
+  {
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-nimbus">
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <path d="M9 12l2 2 4-4" />
+      </svg>
+    ),
+    title: "Summarize a chapter",
+    subtitle: "Get key points from any topic",
+  },
+  {
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-nimbus">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+      </svg>
+    ),
+    title: "Help me study",
+    subtitle: "Quiz me or review important topics",
+  },
+];
+
+export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onViewNote, onHasMessagesChange }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -25,6 +61,12 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const searchParams = useSearchParams();
   const convIdParam = searchParams.get('conv');
+  const { user } = useAuth();
+
+  // Notify parent of message presence for top bar logo transition
+  useEffect(() => {
+    onHasMessagesChange?.(messages.length > 0);
+  }, [messages.length, onHasMessagesChange]);
 
   // Load conversation if provided in URL
   useEffect(() => {
@@ -74,10 +116,10 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
     }
   };
 
-  const handleSend = async () => {
-    if (!inputValue.trim() || isTyping) return;
+  const handleSend = async (overrideMessage?: string) => {
+    const messageToSend = overrideMessage || inputValue.trim();
+    if (!messageToSend || isTyping) return;
 
-    const userMessage = inputValue.trim();
     setInputValue("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -86,7 +128,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
     const optimisticUserMsg: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: userMessage,
+      content: messageToSend,
       created_at: new Date().toISOString(),
     };
 
@@ -111,7 +153,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
     try {
       await api.chatStream(
         projectId,
-        userMessage,
+        messageToSend,
         conversationId,
         (event: SSEEvent) => {
           if (event.type === "meta") {
@@ -178,19 +220,25 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
     }
   };
 
+  const handleSuggestionClick = (title: string) => {
+    handleSend(title);
+  };
+
+  const firstName = user?.name?.split(" ")[0] || "there";
+
   return (
-    <div className="flex flex-col h-full bg-canvas relative">
+    <div className="flex flex-col h-full relative" style={{ background: "var(--nimbus-bg)" }}>
       {/* Top action bar when conversation has messages */}
       {messages.length > 0 && (
-        <div className="px-4 md:px-6 py-2 border-b border-border/60 bg-white/50 backdrop-blur-sm flex justify-between items-center z-10 flex-shrink-0">
-          <span className="text-xs text-muted font-medium">Active Chat Thread</span>
+        <div className="px-4 py-2 border-b border-gray-100 bg-white/60 backdrop-blur-sm flex justify-between items-center z-10 flex-shrink-0">
+          <span className="text-xs text-gray-400 font-medium">Active Chat</span>
           <button
             onClick={handleDeleteCurrentChat}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-muted hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-border/40"
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
             title="Delete Chat History"
           >
             <Trash2 size={13} />
-            <span>Clear Chat</span>
+            <span>Clear</span>
           </button>
         </div>
       )}
@@ -198,56 +246,96 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
       {/* Messages Area */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 pb-44"
+        className="flex-1 overflow-y-auto no-scrollbar px-4 pb-24"
       >
-        <div className="max-w-3xl mx-auto space-y-6 pb-20">
+        <div className="max-w-lg mx-auto space-y-4 pb-2">
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-muted my-20">
-              <div className="w-16 h-16 bg-white rounded-2xl shadow-sm border border-border flex items-center justify-center mb-6">
-                <Bot className="w-8 h-8 text-emerald" />
-              </div>
-              <h3 className="font-heading font-medium text-ink text-lg mb-2">How can I help you learn?</h3>
-              <p className="text-sm text-center max-w-sm text-muted leading-relaxed">
-                Ask questions about the course documents, and I'll find the answers directly from the materials.
+            /* ─── Welcome Screen ─── */
+            <div className="flex flex-col items-center justify-center pt-8 pb-4 animate-fade-in">
+              {/* Animated Orb — smaller and tighter */}
+              <div className="nimbus-orb mb-5" style={{ width: "56px", height: "56px" }} />
+
+              {/* Greeting */}
+              <h2 className="font-heading font-bold text-lg text-gray-900 mb-1.5 text-center">
+                Hi {firstName}, how can I help?
+              </h2>
+              <p className="text-sm text-gray-400 mb-5 text-center max-w-[260px]">
+                Ask me anything about your subject.
               </p>
+
+              {/* Suggestion Cards */}
+              <div className="w-full space-y-2.5 px-1">
+                {SUGGESTIONS.map((suggestion, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSuggestionClick(suggestion.title)}
+                    className="nimbus-suggestion-card w-full flex items-center gap-4 bg-white rounded-2xl border border-gray-100 px-5 py-3.5 text-left shadow-[0_1px_3px_rgba(0,0,0,0.04)] hover:shadow-md hover:border-nimbus/20 group"
+                    style={{ animationDelay: `${idx * 0.08}s` }}
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-nimbus-tint flex items-center justify-center flex-shrink-0 group-hover:bg-nimbus/10 transition-colors">
+                      {suggestion.icon}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-[14px] text-gray-800 mb-0.5">
+                        {suggestion.title}
+                      </div>
+                      <div className="text-[12px] text-gray-400 leading-snug">
+                        {suggestion.subtitle}
+                      </div>
+                    </div>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300 group-hover:text-nimbus transition-colors flex-shrink-0">
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
-            messages.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                message={msg}
-                onSourceClick={onSourceClick}
-                onViewNote={onViewNote}
-              />
-            ))
-          )}
+            /* ─── Message Thread ─── */
+            <div className="pt-4 space-y-5">
+              {messages.map((msg) => (
+                <MessageBubble
+                  key={msg.id}
+                  message={msg}
+                  onSourceClick={onSourceClick}
+                  onViewNote={onViewNote}
+                />
+              ))}
 
-          {isTyping && messages.length > 0 && messages[messages.length - 1].role === "user" && (
-            <div className="flex items-start gap-4">
-              <div className="w-8 h-8 rounded-full bg-emerald flex items-center justify-center flex-shrink-0 text-white shadow-sm">
-                <Bot size={18} />
-              </div>
-              <div className="flex items-center gap-1.5 h-8 bg-white border border-border rounded-2xl rounded-tl-sm px-4 shadow-sm">
-                <div className="typing-dot" />
-                <div className="typing-dot" />
-                <div className="typing-dot" />
-              </div>
+              {/* Typing indicator */}
+              {isTyping && messages.length > 0 && messages[messages.length - 1].role === "user" && (
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-nimbus-light to-nimbus flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                      <path d="M2 17l10 5 10-5" />
+                      <path d="M2 12l10 5 10-5" />
+                    </svg>
+                  </div>
+                  <div className="flex items-center gap-1.5 h-10 bg-white border border-gray-100 rounded-2xl rounded-tl-md px-5 shadow-sm">
+                    <div className="nimbus-typing-dot" />
+                    <div className="nimbus-typing-dot" />
+                    <div className="nimbus-typing-dot" />
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {/* Composer Area - Floating at bottom */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-canvas via-canvas/95 to-transparent pb-safe z-10">
-        <div className="max-w-3xl mx-auto relative flex items-end gap-2 bg-white rounded-2xl shadow-[0_2px_12px_rgb(0,0,0,0.06)] border border-border p-2 pr-3 focus-within:border-emerald/50 focus-within:shadow-[0_2px_16px_rgba(16,185,129,0.1)] transition-all">
+      {/* ─── Composer Area — Fixed at bottom ─── */}
+      <div className="absolute bottom-0 left-0 right-0 p-2.5 pt-2 bg-gradient-to-t from-[var(--nimbus-bg)] via-[var(--nimbus-bg)]/95 to-transparent pb-safe z-10">
+        <div className="max-w-lg mx-auto relative flex items-end gap-2 bg-white rounded-2xl shadow-[0_2px_14px_rgba(0,0,0,0.06)] border border-gray-100 p-1.5 px-2 focus-within:border-nimbus/30 focus-within:shadow-[0_2px_18px_rgba(59,107,245,0.08)] transition-all">
 
+          {/* Attach button */}
           {onAttachClick && (
             <button
               onClick={onAttachClick}
-              className="p-2.5 text-muted hover:text-emerald hover:bg-emerald-tint rounded-xl transition-colors mb-0.5"
-              title="Upload PDF"
+              className="p-2 text-gray-400 hover:text-nimbus hover:bg-nimbus-tint rounded-xl transition-colors mb-0.5"
+              title="Attach file"
             >
-              <FileText size={20} />
+              <Paperclip size={19} />
             </button>
           )}
 
@@ -256,28 +344,30 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
             value={inputValue}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Ask a question about the course..."
-            className="flex-1 max-h-[120px] bg-transparent resize-none outline-none py-2.5 px-1 text-[15px] leading-relaxed custom-scrollbar placeholder:text-muted/70 text-ink"
+            placeholder="Ask me anything..."
+            className="flex-1 max-h-[120px] bg-transparent resize-none outline-none py-2 px-2 text-[15px] leading-relaxed no-scrollbar placeholder:text-gray-400 text-gray-800"
             rows={1}
             disabled={isTyping}
           />
 
+          {/* Send button */}
           <button
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={!inputValue.trim() || isTyping}
             className={cn(
               "p-2.5 rounded-xl transition-all mb-0.5",
               inputValue.trim() && !isTyping
-                ? "bg-emerald text-white shadow-sm hover:bg-emerald-deep active:scale-95"
-                : "bg-rail text-muted cursor-not-allowed"
+                ? "bg-nimbus text-white shadow-sm hover:bg-nimbus-deep active:scale-95"
+                : "bg-gray-100 text-gray-300 cursor-not-allowed"
             )}
           >
             <Send size={18} />
           </button>
         </div>
-        <div className="text-center mt-2">
-          <span className="text-[10px] text-muted font-medium tracking-wide opacity-70">
-            AI responses are generated based on course materials and may contain inaccuracies.
+
+        <div className="text-center mt-1.5">
+          <span className="text-[10px] text-gray-400 font-medium tracking-wide opacity-60">
+            Responses may contain inaccuracies. Always verify important information.
           </span>
         </div>
       </div>

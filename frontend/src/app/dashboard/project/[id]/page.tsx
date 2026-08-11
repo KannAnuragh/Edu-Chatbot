@@ -10,6 +10,7 @@ import UploadZone from "@/components/upload/UploadZone";
 import DocumentList from "@/components/documents/DocumentList";
 import { Pencil, FileText, Settings as SettingsIcon } from "lucide-react";
 import type { Project, Document as DocType, SourceReference } from "@/types";
+import { cn } from "@/lib/utils";
 
 export default function ProjectPage() {
   const params = useParams();
@@ -25,6 +26,7 @@ export default function ProjectPage() {
 
   // Mobile state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [hasMessages, setHasMessages] = useState(false);
 
   useEffect(() => {
     const handleGlobalDragOver = (e: DragEvent) => {
@@ -116,11 +118,11 @@ export default function ProjectPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-canvas">
-        <div className="flex items-center gap-3">
-          <div className="typing-dot" />
-          <div className="typing-dot" />
-          <div className="typing-dot" />
+      <div className="flex items-center justify-center min-h-screen" style={{ background: "var(--nimbus-bg)" }}>
+        <div className="flex items-center gap-2">
+          <div className="nimbus-typing-dot" />
+          <div className="nimbus-typing-dot" />
+          <div className="nimbus-typing-dot" />
         </div>
       </div>
     );
@@ -207,8 +209,8 @@ export default function ProjectPage() {
         </div>
       </div>
 
-      {/* ======== MOBILE LAYOUT (<768px) ======== */}
-      <div className="flex md:hidden flex-col h-screen w-full bg-canvas overflow-hidden">
+      {/* ======== MOBILE LAYOUT (<768px) — Nimbus Style ======== */}
+      <div className="flex md:hidden flex-col h-screen w-full overflow-hidden" style={{ background: "var(--nimbus-bg)" }}>
         {/* Mobile Sidebar Drawer */}
         <Sidebar
           activeProjectId={projectId}
@@ -216,31 +218,40 @@ export default function ProjectPage() {
           onMobileClose={() => setMobileMenuOpen(false)}
         />
 
-        {/* Mobile Header */}
-        <div className="h-12 flex-shrink-0 px-3 border-b border-border bg-canvas/95 backdrop-blur-md flex items-center justify-between pt-safe z-30">
-          <div className="flex items-center gap-2 min-w-0">
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="p-1.5 rounded-lg text-muted hover:bg-rail hover:text-ink transition-colors flex-shrink-0"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            <h2 className="font-heading font-medium text-[14px] text-ink truncate min-w-0">
-              {project?.title || "Course"}
-            </h2>
+        {/* Mobile Header — Nimbus Style */}
+        <div className="flex-shrink-0 px-4 border-b border-gray-100 bg-white/80 backdrop-blur-xl flex items-center justify-between pt-safe z-30 h-14">
+          {/* Left: hamburger */}
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="p-2 -ml-1 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors flex-shrink-0"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+
+          {/* Center: Bot identity / Logo */}
+          <div className="flex items-center justify-center h-8">
+            <img
+              src="/vocabspedia.png"
+              alt="Vocabspedia"
+              className="h-8 object-contain"
+            />
           </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={() => setShowUpload(true)}
-              className="px-2.5 py-1.5 text-[11px] font-medium text-emerald bg-emerald-tint border border-emerald-border rounded shadow-sm flex items-center gap-1 transition-colors"
-            >
-              <FileText size={13} />
-              {documents.length} PDF{documents.length !== 1 ? "s" : ""}
-            </button>
-          </div>
+          {/* Right: new chat icon */}
+          <button
+            onClick={() => {
+              window.location.href = `/dashboard/project/${projectId}`;
+            }}
+            className="p-2 -mr-1 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors flex-shrink-0"
+            title="New Chat"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
         </div>
 
         {/* Mobile Chat Thread */}
@@ -248,9 +259,9 @@ export default function ProjectPage() {
           <Suspense
             fallback={
               <div className="flex items-center justify-center h-full">
-                <div className="typing-dot" />
-                <div className="typing-dot" />
-                <div className="typing-dot" />
+                <div className="nimbus-typing-dot" />
+                <div className="nimbus-typing-dot" />
+                <div className="nimbus-typing-dot" />
               </div>
             }
           >
@@ -258,6 +269,7 @@ export default function ProjectPage() {
               projectId={projectId}
               onSourceClick={handleSourceClick}
               onAttachClick={isAdmin ? () => setShowUpload((prev) => !prev) : undefined}
+              onHasMessagesChange={setHasMessages}
             />
           </Suspense>
         </div>
@@ -273,16 +285,16 @@ export default function ProjectPage() {
           />
 
           {/* Drawer Container */}
-          <div className="relative w-full max-w-lg mx-auto bg-canvas border-t border-x border-border rounded-t-3xl shadow-2xl overflow-hidden flex flex-col max-h-[60vh] animate-slide-in-up">
+          <div className="relative w-full max-w-lg mx-auto bg-white border-t border-x border-gray-100 rounded-t-3xl shadow-2xl overflow-hidden flex flex-col max-h-[60vh] animate-slide-in-up-drawer">
             {/* Drawer Header */}
-            <div className="px-5 py-3 border-b border-border flex items-center justify-between bg-rail/60">
+            <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50/60">
               <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald" />
-                <h3 className="font-heading font-medium text-ink text-sm">Course PDFs & Documents</h3>
+                <div className="w-2.5 h-2.5 rounded-full bg-nimbus" />
+                <h3 className="font-heading font-medium text-gray-800 text-sm">Course PDFs & Documents</h3>
               </div>
               <button
                 onClick={() => setShowUpload(false)}
-                className="p-1.5 text-muted hover:text-ink rounded-lg hover:bg-rail transition-colors"
+                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
                 title="Close"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -292,11 +304,11 @@ export default function ProjectPage() {
             </div>
 
             {/* Drawer Body */}
-            <div className="p-4 overflow-y-auto custom-scrollbar space-y-4">
+            <div className="p-4 overflow-y-auto no-scrollbar space-y-4">
               {/* Document List */}
               {documents.length > 0 ? (
                 <div>
-                  <h4 className="text-[11px] font-mono uppercase tracking-wider text-muted mb-2">
+                  <h4 className="text-[11px] font-mono uppercase tracking-wider text-gray-400 mb-2">
                     Attached PDFs ({documents.length})
                   </h4>
                   <DocumentList
@@ -307,12 +319,12 @@ export default function ProjectPage() {
                   />
                 </div>
               ) : (
-                <div className="text-center py-4 text-xs text-muted">No PDFs attached yet.</div>
+                <div className="text-center py-4 text-xs text-gray-400">No PDFs attached yet.</div>
               )}
 
               {/* Upload PDF section at the bottom for admin */}
               {isAdmin && (
-                <div className="pt-2 border-t border-border">
+                <div className="pt-2 border-t border-gray-100">
                   <UploadZone projectId={projectId} onUploadComplete={handleUploadComplete} />
                 </div>
               )}

@@ -144,22 +144,7 @@ class ChatService:
                 
                 print(f"🐛 [CHAT DEBUG] Raw chunks retrieved from Qdrant: {len(raw_chunks)}", flush=True)
                 
-                # STRICT FALLBACK VERIFICATION: Filter out any chunks that don't match the course_id or "GLOBAL"
-                # This guarantees isolation even if the vector DB index has an issue.
-                course_filtered_chunks = []
-                target_course_id = str(course_id).lower().strip() if course_id else ""
-                
-                for c in raw_chunks:
-                    # Providers return flat dicts, so we just get course_id directly
-                    chunk_course_id = c.get('course_id')
-                    
-                    if chunk_course_id:
-                        normalized_chunk_course_id = str(chunk_course_id).lower().strip()
-                        if target_course_id and normalized_chunk_course_id not in [target_course_id, "global"]:
-                            print(f"⚠️ [WARNING] Vector DB returned chunk from wrong course! Expected {target_course_id} or GLOBAL, got {normalized_chunk_course_id}. Ignoring.", flush=True)
-                            continue
-                            
-                    course_filtered_chunks.append(c)
+                course_filtered_chunks = raw_chunks
                 
                 print(f"🐛 [CHAT DEBUG] Chunks remaining after course filter: {len(course_filtered_chunks)}", flush=True)
                 

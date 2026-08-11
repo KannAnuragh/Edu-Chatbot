@@ -61,9 +61,9 @@ class Settings(BaseSettings):
     # --- Cloudflare Settings ---
     CLOUDFLARE_ACCOUNT_ID: str = ""
     CLOUDFLARE_API_TOKEN: str = ""
-    CLOUDFLARE_VECTORIZE_INDEX: str = "course_documents"
+    CLOUDFLARE_VECTORIZE_INDEX: str = "anuragh_vector"
     CLOUDFLARE_LLM_MODEL: str = "@cf/meta/llama-3.1-8b-instruct"
-    CLOUDFLARE_EMBEDDING_MODEL: str = "@cf/baai/bge-base-en-v1.5"
+    CLOUDFLARE_EMBEDDING_MODEL: str = "@cf/baai/bge-m3"
 
     # --- AI / LLM ---
     GEMINI_API_KEY: str = ""

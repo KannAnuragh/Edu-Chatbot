@@ -106,9 +106,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     import traceback
     with open("app_validation_error.log", "a") as f:
         f.write(f"Validation Error on {request.url}:\n{exc.errors()}\n")
+    body_str = exc.body.decode('utf-8', errors='ignore') if isinstance(exc.body, bytes) else exc.body
     return JSONResponse(
         status_code=422,
-        content={"detail": exc.errors(), "body": exc.body},
+        content={"detail": exc.errors(), "body": body_str},
     )
 
 async def ensure_default_users():

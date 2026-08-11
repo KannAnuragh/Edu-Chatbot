@@ -6,7 +6,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { api } from "@/lib/api";
 import { type Project, type Conversation } from "@/types";
 import { cn } from "@/lib/utils";
-import { Plus, LayoutDashboard, User, LogOut, MessageSquare, ChevronLeft, ChevronRight, ArrowLeft, Trash2 } from "lucide-react";
+import { Plus, User, LogOut, MessageSquare, Trash2, X } from "lucide-react";
 
 interface SidebarProps {
   activeProjectId?: string;
@@ -100,10 +100,9 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
     yesterday.setDate(yesterday.getDate() - 1);
     
     const groups: Record<string, Conversation[]> = {
-      "Today": [],
-      "Yesterday": [],
-      "Previous 7 Days": [],
-      "Older": []
+      "TODAY": [],
+      "YESTERDAY": [],
+      "EARLIER": [],
     };
 
     conversations.forEach(conv => {
@@ -111,20 +110,119 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
       d.setHours(0, 0, 0, 0);
       
       if (d.getTime() === today.getTime()) {
-        groups["Today"].push(conv);
+        groups["TODAY"].push(conv);
       } else if (d.getTime() === yesterday.getTime()) {
-        groups["Yesterday"].push(conv);
-      } else if (today.getTime() - d.getTime() <= 7 * 24 * 60 * 60 * 1000) {
-        groups["Previous 7 Days"].push(conv);
+        groups["YESTERDAY"].push(conv);
       } else {
-        groups["Older"].push(conv);
+        groups["EARLIER"].push(conv);
       }
     });
 
     return groups;
   }, [conversations]);
 
-  const sidebarContent = (
+  // ─── Nimbus-style mobile sidebar content ───
+  const nimbusSidebarContent = (
+    <div className="flex flex-col h-full bg-white w-[280px] overflow-hidden pt-safe pb-safe">
+      {/* Sidebar Header — Bot identity */}
+      <div className="px-5 py-4 flex items-center justify-between border-b border-gray-100 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-nimbus-light to-nimbus flex items-center justify-center shadow-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z" />
+              <path d="M2 17l10 5 10-5" />
+              <path d="M2 12l10 5 10-5" />
+            </svg>
+          </div>
+          <span className="font-heading font-semibold text-[15px] text-gray-900">AI Assistant</span>
+        </div>
+        {onMobileClose && (
+          <button
+            onClick={onMobileClose}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        )}
+      </div>
+
+      {/* New Chat Button */}
+      <div className="px-4 pt-4 pb-2 flex-shrink-0">
+        <button
+          onClick={handleNewChat}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-nimbus text-white font-medium text-sm shadow-sm hover:bg-nimbus-deep active:scale-[0.97] transition-all"
+        >
+          <Plus size={16} />
+          New chat
+        </button>
+      </div>
+
+      {/* Conversation List */}
+      <div className="flex-1 overflow-y-auto no-scrollbar px-3 py-2 space-y-1">
+        {loading ? (
+          <div className="flex items-center justify-center py-10">
+            <div className="flex items-center gap-1.5">
+              <div className="nimbus-typing-dot" />
+              <div className="nimbus-typing-dot" />
+              <div className="nimbus-typing-dot" />
+            </div>
+          </div>
+        ) : conversations.length === 0 ? (
+          <div className="text-center py-10 px-4">
+            <p className="text-sm text-gray-400 italic">No chats yet</p>
+            <p className="text-xs text-gray-300 mt-1">Start a conversation below</p>
+          </div>
+        ) : (
+          Object.entries(groupedConversations).map(([groupName, convs]) => {
+            if (convs.length === 0) return null;
+            return (
+              <div key={groupName} className="mb-3">
+                <h4 className="text-[10px] font-semibold text-gray-400 tracking-wider px-3 py-2 uppercase">
+                  {groupName}
+                </h4>
+                <div className="space-y-0.5">
+                  {convs.map(conv => {
+                    const isActive = activeConvId === conv.id;
+                    return (
+                      <div
+                        key={conv.id}
+                        onClick={() => handleSelectConversation(conv)}
+                        className={cn(
+                          "w-full text-left rounded-xl flex items-center group transition-all cursor-pointer px-3 py-2.5 gap-2.5 relative",
+                          isActive
+                            ? "bg-nimbus-tint text-nimbus font-medium"
+                            : "text-gray-600 hover:bg-gray-50 active:bg-gray-100"
+                        )}
+                      >
+                        {/* Active dot indicator */}
+                        <div className={cn(
+                          "w-2 h-2 rounded-full flex-shrink-0 transition-colors",
+                          isActive ? "bg-nimbus" : "bg-gray-300"
+                        )} />
+                        <span className="truncate text-[13px] flex-1">{conv.title}</span>
+                        <button
+                          onClick={(e) => handleDeleteConversation(e, conv.id)}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 rounded transition-all flex-shrink-0 text-gray-400"
+                          title="Delete Chat"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Conversation List */}
+    </div>
+  );
+
+  // ─── Desktop sidebar (existing style for admin) ───
+  const desktopSidebarContent = (
     <div className={cn(
       "flex flex-col h-full bg-rail border-r border-border text-sm overflow-hidden pt-safe pb-safe transition-all duration-300",
       minimized ? "w-[80px]" : "w-[260px]"
@@ -139,7 +237,9 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
           className="flex items-center gap-2 text-sm text-muted hover:text-ink font-medium transition-colors"
           title="Back to Dashboard"
         >
-          <ArrowLeft size={16} />
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
           {!minimized && <span>Dashboard</span>}
         </button>
         <button
@@ -147,13 +247,15 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
           className="p-1.5 rounded-lg text-muted hover:bg-white hover:shadow-sm hover:text-ink transition-colors"
           title={minimized ? "Expand Sidebar" : "Minimize Sidebar"}
         >
-          {minimized ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          {minimized ? (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+          )}
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-6">
-        
-        {/* Conversations Section */}
         {activeProjectId && (
           <div>
             <div className={cn(
@@ -171,7 +273,7 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
                     <Trash2 size={13} />
                   </button>
                 )}
-                <button 
+                <button
                   onClick={handleNewChat}
                   className={cn(
                     "hover:text-emerald transition-colors bg-white rounded-md border border-border shadow-sm flex items-center justify-center",
@@ -188,7 +290,7 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
               {loading ? (
                 <div className="px-2 text-muted text-xs text-center py-4">Loading...</div>
               ) : conversations.length === 0 ? (
-                 <div className="px-2 text-muted text-xs italic text-center">No chats yet</div>
+                <div className="px-2 text-muted text-xs italic text-center">No chats yet</div>
               ) : (
                 Object.entries(groupedConversations).map(([groupName, convs]) => {
                   if (convs.length === 0) return null;
@@ -209,8 +311,8 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
                             className={cn(
                               "w-full text-left rounded-lg flex items-center group transition-colors cursor-pointer relative",
                               minimized ? "justify-center p-2" : "px-3 py-2 gap-2",
-                              isActive 
-                                ? "bg-white text-emerald shadow-sm border border-emerald/10" 
+                              isActive
+                                ? "bg-white text-emerald shadow-sm border border-emerald/10"
                                 : "text-muted hover:bg-white hover:text-ink border border-transparent"
                             )}
                           >
@@ -288,28 +390,29 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
     </div>
   );
 
+  // ─── Render logic ───
   if (isMobileOpen !== undefined) {
     return (
       <>
         {/* Mobile Backdrop */}
         {isMobileOpen && (
           <div 
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity md:hidden"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity"
             onClick={onMobileClose}
           />
         )}
         
-        {/* Mobile Drawer */}
+        {/* Mobile Drawer — Nimbus style */}
         <div className={cn(
           "fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden shadow-2xl",
           isMobileOpen ? "translate-x-0" : "-translate-x-full"
         )}>
-          {sidebarContent}
+          {nimbusSidebarContent}
         </div>
 
-        {/* Desktop Sidebar (hidden on mobile when not rendering as drawer) */}
+        {/* Desktop Sidebar (hidden on mobile) */}
         <div className="hidden md:block h-full">
-          {sidebarContent}
+          {desktopSidebarContent}
         </div>
       </>
     );
@@ -318,7 +421,7 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
   // Standard desktop render
   return (
     <div className="hidden md:block h-full z-30">
-      {sidebarContent}
+      {desktopSidebarContent}
     </div>
   );
 }

@@ -37,12 +37,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           token = res.access_token;
           localStorage.setItem("aca_token", token as string);
 
-          // Strip the credentials from the URL without reloading the page
-          const newUrl = window.location.pathname + window.location.search
-            .replace(new RegExp(`[?&]api_key=${apiKey}`), '')
-            .replace(new RegExp(`[?&]student_id=${studentId}`), '')
-            .replace(/^&/, '?');
-          window.history.replaceState({}, document.title, newUrl || window.location.pathname);
+          // Strip credentials from URL cleanly
+          const cleanSearchParams = new URLSearchParams(window.location.search);
+          cleanSearchParams.delete("api_key");
+          cleanSearchParams.delete("student_id");
+          const searchStr = cleanSearchParams.toString();
+          const cleanPathname = window.location.pathname.replace(/^\/\/+/, '/');
+          const newUrl = cleanPathname + (searchStr ? `?${searchStr}` : '');
+          window.history.replaceState({}, document.title, newUrl);
         } catch (error) {
           console.error("Direct Login failed:", error);
         }

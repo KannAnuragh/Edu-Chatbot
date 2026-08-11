@@ -125,6 +125,28 @@ async def enroll_course(
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
+    if current_user.role == "student":
+        student_id = current_user.email.split("@")[0]
+        from services.auth_service import STUDENT_PROFILES
+        profile = STUDENT_PROFILES.get(student_id)
+        if profile:
+            courses = profile.get("courses", [])
+            if not any(str(c.get("id")) == str(course_id) for c in courses):
+                doc_result = await db.execute(
+                    select(func.count()).select_from(Document).where(Document.course_id == course_id)
+                )
+                doc_count = doc_result.scalar_one()
+                courses.append({
+                    "id": str(course_id),
+                    "title": course.title,
+                    "description": course.description or "",
+                    "docs": f"{doc_count} docs",
+                    "date": "",
+                    "progress": 0
+                })
+                profile["courses"] = courses
+        return {"detail": "Successfully enrolled"}
+
     # Check existing enrollment
     result = await db.execute(
         select(Enrollment).where(

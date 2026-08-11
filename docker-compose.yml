@@ -34,19 +34,12 @@ services:
       timeout: 5s
       retries: 5
 
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: aca-qdrant
-    restart: unless-stopped
-    volumes:
-      - aca_qdrant_data:/qdrant/storage
-    networks:
-      - aca_net
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      network: host
     container_name: aca-backend
     restart: unless-stopped
     command: >
@@ -57,8 +50,6 @@ services:
       DATABASE_URL: postgresql+asyncpg://aca_user:aca_secret@postgres:5432/aca_db
       DATABASE_URL_SYNC: postgresql://aca_user:aca_secret@postgres:5432/aca_db
       REDIS_URL: redis://redis:6379/0
-      QDRANT_HOST: qdrant
-      QDRANT_PORT: 6333
       FRONTEND_URL: http://localhost
       DEBUG: "False"
     depends_on:
@@ -66,8 +57,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      qdrant:
-        condition: service_started
     ports:
       - "8001:8000"
     volumes:
@@ -79,6 +68,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      network: host
     container_name: aca-celery
     restart: unless-stopped
     command: celery -A workers.celery_app worker --loglevel=info
@@ -88,16 +78,12 @@ services:
       DATABASE_URL: postgresql+asyncpg://aca_user:aca_secret@postgres:5432/aca_db
       DATABASE_URL_SYNC: postgresql://aca_user:aca_secret@postgres:5432/aca_db
       REDIS_URL: redis://redis:6379/0
-      QDRANT_HOST: qdrant
-      QDRANT_PORT: 6333
       DEBUG: "False"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      qdrant:
-        condition: service_started
     volumes:
       - aca_backend_uploads:/app/uploads
     networks:
@@ -107,12 +93,20 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: dev
+      network: host
       args:
         NEXT_PUBLIC_API_URL: http://localhost:8001/api/v1
     container_name: aca-frontend
     restart: unless-stopped
+    command: npm run dev -- -H 0.0.0.0 -p 3000
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8001/api/v1
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
     depends_on:
       - backend
     ports:
@@ -123,7 +117,6 @@ services:
 volumes:
   aca_postgres_data:
   aca_redis_data:
-  aca_qdrant_data:
   aca_backend_uploads:
 
 networks:

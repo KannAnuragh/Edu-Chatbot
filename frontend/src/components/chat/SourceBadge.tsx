@@ -15,12 +15,12 @@ export default function SourceBadge({ source, onClick }: SourceBadgeProps) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-tint text-emerald hover:bg-emerald/20 transition-all border border-emerald-border cursor-pointer whitespace-nowrap align-middle"
-      title="View in PDF"
+      className="inline-flex items-center gap-1.5 mx-0.5 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-nimbus-tint text-nimbus hover:bg-nimbus/10 transition-all border border-nimbus-border cursor-pointer whitespace-nowrap align-middle active:scale-[0.96]"
+      title="View source"
     >
-      <FileText size={10} className="opacity-70" />
+      <FileText size={11} className="opacity-60" />
       <span className="max-w-[120px] truncate">{displayFilename}</span>
-      <span className="opacity-70 font-mono text-[9px] ml-0.5 border-l border-emerald/30 pl-1">p.{source.page_number}</span>
+      <span className="opacity-60 font-mono text-[9px] ml-0.5 border-l border-nimbus/20 pl-1.5">p.{source.page_number}</span>
     </button>
   );
 }

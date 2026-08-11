@@ -4,28 +4,26 @@ from sqlalchemy import select
 from core.database import async_session_factory, engine as async_engine, Base
 from core.config import settings
 # Import all models to ensure they are registered with Base.metadata
-from models.user import User, UserRole
-from models.course import Course
-from models.document import Document
-from models.conversation import Conversation, Message
+from models import *
 from auth.hashing import hash_password
 
 async def create_users():
-    # Ensure database schema exists
+    # Ensure database schema exists in its own transaction
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         print("Database schema initialized.")
         
-        # --- Auto Migrations ---
-        from sqlalchemy import text
-        try:
+    # --- Auto Migrations in a separate transaction ---
+    from sqlalchemy import text
+    try:
+        async with async_engine.begin() as conn:
             await conn.execute(text("ALTER TABLE documents ADD COLUMN is_global BOOLEAN NOT NULL DEFAULT FALSE;"))
             print("✅ Migration: Successfully added 'is_global' column to 'documents' table!")
-        except Exception as e:
-            if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
-                pass
-            else:
-                print(f"⚠️ Migration Error (is_global): {e}")
+    except Exception as e:
+        if "already exists" in str(e).lower() or "duplicate column" in str(e).lower():
+            pass
+        else:
+            print(f"⚠️ Migration Error (is_global): {e}")
     async with async_session_factory() as session:
         # Create Admin
         admin_email = settings.DEFAULT_ADMIN_EMAIL
