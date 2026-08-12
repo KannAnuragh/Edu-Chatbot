@@ -1,0 +1,129 @@
+:root {
+  --tick-base-size: 16px;
+  --tick-gap: 6px;
+  --bg-color: #0f172a;
+  --tick-color: rgba(148, 163, 184, 0.5);
+  --tick-hover-color: #ffffff;
+  --spring-easing: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: var(--bg-color);
+  font-family: system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+  color: white;
+}
+
+.demo-title {
+  position: absolute;
+  top: 40px;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.demo-title h1 {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.demo-title p {
+  margin: 0;
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.scrub-container {
+  position: fixed;
+  right: 32px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 40px 20px; /* large hit area for easier interaction */
+  cursor: pointer;
+  z-index: 10;
+  touch-action: none; /* prevent scrolling when touching rail */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.scrub-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tick-gap);
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.tick {
+  width: var(--tick-base-size);
+  height: var(--tick-base-size);
+  background: var(--tick-color);
+  border-radius: 99px;
+  transition: transform 0.4s var(--spring-easing), background-color 0.2s ease;
+  transform: translateY(var(--translate-y, 0px)) translateX(var(--translate-x, 0px)) scale(var(--scale, 1));
+  transform-origin: right center;
+  will-change: transform;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.tick:hover, .tick.active {
+  background: var(--tick-hover-color);
+}
+
+/* Mobile: Horizontal Scrub Bar */
+@media (max-width: 679px) {
+  .demo-title {
+    top: 20px;
+  }
+  
+  .scrub-container {
+    right: 50%;
+    top: auto;
+    bottom: 32px;
+    transform: translateX(50%);
+    padding: 20px 40px;
+  }
+  
+  .scrub-rail {
+    flex-direction: row;
+  }
+  
+  .tick {
+    transform-origin: center bottom;
+  }
+}
+
+/* Accessible Fallback */
+@media (prefers-reduced-motion: reduce) {
+  .tick {
+    transition: none !important;
+    transform: none !important;
+  }
+  
+  .scrub-container {
+    padding: 16px;
+    max-height: 80vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: rgba(255,255,255,0.05);
+    border-radius: 24px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  
+  @media (max-width: 679px) {
+    .scrub-container {
+      max-width: 90vw;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+  }
+}
