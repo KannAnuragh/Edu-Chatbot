@@ -457,8 +457,6 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
                   Your personal AI study companion for instant answers & summaries.
                 </p>
               </div>
-
-              </div>
             </div>
           ) : (
             /* ─── Message Thread ─── */
