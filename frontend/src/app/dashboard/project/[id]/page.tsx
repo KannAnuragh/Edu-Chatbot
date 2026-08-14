@@ -219,7 +219,14 @@ export default function ProjectPage() {
         />
 
         {/* Mobile Header — Nimbus Style */}
-        <div className="absolute top-0 left-0 right-0 px-4 border-b border-transparent flex items-center justify-between pt-safe z-30 h-14 bg-transparent pointer-events-none">
+        <div
+          className={cn(
+            "absolute top-0 left-0 right-0 px-4 flex items-center justify-between pt-safe z-30 h-14 transition-all duration-300 pointer-events-none",
+            hasMessages
+              ? "bg-[#F2F2F2] border-b border-gray-200/60 shadow-sm"
+              : "bg-transparent border-b border-transparent"
+          )}
+        >
           {/* Left: hamburger */}
           <button
             onClick={() => setMobileMenuOpen(true)}
