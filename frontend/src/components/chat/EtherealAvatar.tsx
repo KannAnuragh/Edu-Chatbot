@@ -156,7 +156,7 @@ export default function EtherealAvatar({ playStartupAnimation = false, onAnimati
       <svg
         viewBox="0 0 100 100"
         className={cn(
-          "relative z-10 w-24 h-24 text-white drop-shadow-lg overflow-visible transition-all duration-500 ease-out",
+          "relative z-10 w-full h-full text-white drop-shadow-lg overflow-visible transition-all duration-500 ease-out",
           showFace ? "opacity-100 scale-100" : "opacity-0 scale-50"
         )}
       >

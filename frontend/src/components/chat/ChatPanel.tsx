@@ -432,8 +432,8 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
         className={cn(
           "flex-1 no-scrollbar px-4 relative z-20",
           messages.length === 0
-            ? (isInputFocused ? "flex flex-col h-full overflow-hidden" : "flex flex-col h-full overflow-y-auto")
-            : "overflow-y-auto pb-24"
+            ? (isInputFocused ? "flex flex-col h-full overflow-hidden pt-14 md:pt-0" : "flex flex-col h-full overflow-y-auto pt-14 md:pt-0")
+            : "overflow-y-auto pb-24 pt-14 md:pt-0"
         )}
       >
         <div className={cn("max-w-lg mx-auto w-full relative z-20", messages.length === 0 ? "flex-1 flex flex-col h-full" : "space-y-4 pb-2")}>
@@ -441,16 +441,24 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
             /* ─── Welcome Screen ─── */
             <div className="flex-1 flex flex-col items-center animate-fade-in relative z-20 w-full h-full">
 
-              {/* Hero Section — vertically centered normally, pinned to top half when keyboard is open */}
+              {/* Top Spacer for Smooth Centering/Positioning */}
+              <div 
+                className="w-full transition-all duration-500 ease-in-out shrink-0"
+                style={{
+                  flexGrow: isInputFocused ? 0 : 1,
+                  flexBasis: isInputFocused ? '10%' : '0px'
+                }}
+              />
+
+              {/* Hero Section */}
               <div className={cn(
-                "flex flex-col items-center justify-center text-center w-full shrink-0 transition-all duration-500 ease-in-out",
-                isInputFocused
-                  ? "flex-1 max-h-[50%]" // constrain to top half of visible area when keyboard open
-                  : "my-auto pt-4 pb-4 md:pb-8"
+                "flex flex-col items-center text-center w-full shrink-0 transition-all duration-500 ease-in-out",
+                isInputFocused ? "pb-0" : "pt-4 pb-4 md:pb-8"
               )}>
                 <div className={cn(
-                  "transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]",
-                  isInitializing ? "translate-y-[20vh] scale-125" : "translate-y-0 scale-100"
+                  "transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform-gpu",
+                  isInitializing ? "scale-110" : "scale-100",
+                  isInputFocused ? "scale-75 md:scale-100 origin-top mb-[-1rem]" : ""
                 )}>
                   <EtherealAvatar
                     playStartupAnimation={isInitializing}
@@ -473,12 +481,20 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
                 </p>
               </div>
 
+              {/* Bottom Spacer for Smooth Centering */}
+              <div 
+                className="w-full transition-all duration-500 ease-in-out shrink-0"
+                style={{
+                  flexGrow: 1
+                }}
+              />
+
               {/* Suggestion Cards */}
               <div className={cn(
                 "flex-shrink-0 flex flex-col w-full gap-2 md:gap-3 transition-all duration-500 ease-in-out overflow-hidden",
                 isInitializing ? "max-h-0 opacity-0 pb-0 m-0 pointer-events-none" : 
                 isInputFocused ? "max-h-0 md:max-h-[500px] opacity-0 md:opacity-100 pb-0 md:pb-[80px] m-0 pointer-events-none md:pointer-events-auto" : 
-                "max-h-[500px] opacity-100 pb-2 md:pb-[80px] pointer-events-auto"
+                "max-h-[500px] opacity-100 pb-[76px] md:pb-[80px] pointer-events-auto"
               )}>
                 {SUGGESTIONS.map((suggestion, idx) => (
                   <button

@@ -219,11 +219,11 @@ export default function ProjectPage() {
         />
 
         {/* Mobile Header — Nimbus Style */}
-        <div className="flex-shrink-0 px-4 border-b border-transparent flex items-center justify-between pt-safe z-30 h-14" style={{ background: "var(--nimbus-bg)" }}>
+        <div className="absolute top-0 left-0 right-0 px-4 border-b border-transparent flex items-center justify-between pt-safe z-30 h-14 bg-transparent pointer-events-none">
           {/* Left: hamburger */}
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="p-2 -ml-1 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors flex-shrink-0"
+            className="p-2 -ml-1 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors flex-shrink-0 pointer-events-auto"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -244,7 +244,7 @@ export default function ProjectPage() {
             onClick={() => {
               window.location.href = `/dashboard/project/${projectId}`;
             }}
-            className="p-2 -mr-1 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors flex-shrink-0"
+            className="p-2 -mr-1 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors flex-shrink-0 pointer-events-auto"
             title="New Chat"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -254,8 +254,8 @@ export default function ProjectPage() {
           </button>
         </div>
 
-        {/* Mobile Chat Thread */}
-        <div className="flex-1 overflow-hidden relative">
+        {/* Mobile Chat Thread (Takes full height now) */}
+        <div className="absolute inset-0 overflow-hidden">
           <Suspense
             fallback={
               <div className="flex items-center justify-center h-full">
