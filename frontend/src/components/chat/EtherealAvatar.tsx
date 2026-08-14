@@ -133,7 +133,7 @@ export default function EtherealAvatar({ playStartupAnimation = false, onAnimati
   const showFace = startupPhase >= 1;
 
   return (
-    <div ref={containerRef} className="relative w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 mb-4 md:mb-8 flex items-center justify-center animate-[float_4s_ease-in-out_infinite]">
+    <div ref={containerRef} className="relative w-28 h-28 sm:w-28 sm:h-28 md:w-32 md:h-32 mb-4 md:mb-8 mx-auto flex items-center justify-center animate-[float_4s_ease-in-out_infinite]">
 
       {/* Diffused Aurora Sphere - slowly spinning to create shifting color effect */}
       <div

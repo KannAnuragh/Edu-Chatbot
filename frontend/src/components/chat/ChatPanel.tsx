@@ -429,17 +429,24 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
             textareaRef.current.blur();
           }
         }}
-        className={cn("flex-1 overflow-y-auto no-scrollbar px-4 relative z-20", messages.length === 0 ? "flex flex-col h-full" : "pb-24")}
+        className={cn(
+          "flex-1 no-scrollbar px-4 relative z-20",
+          messages.length === 0
+            ? (isInputFocused ? "flex flex-col h-full overflow-hidden" : "flex flex-col h-full overflow-y-auto")
+            : "overflow-y-auto pb-24"
+        )}
       >
         <div className={cn("max-w-lg mx-auto w-full relative z-20", messages.length === 0 ? "flex-1 flex flex-col h-full" : "space-y-4 pb-2")}>
           {messages.length === 0 ? (
             /* ─── Welcome Screen ─── */
             <div className="flex-1 flex flex-col items-center animate-fade-in relative z-20 w-full h-full">
 
-              {/* Hero Section */}
+              {/* Hero Section — vertically centered normally, pinned to top half when keyboard is open */}
               <div className={cn(
-                "flex flex-col items-center text-center w-full shrink-0 transition-all duration-700 ease-in-out",
-                isInputFocused ? "mt-4 mb-auto pb-0" : "my-auto pb-4 md:pb-8 pt-4"
+                "flex flex-col items-center justify-center text-center w-full shrink-0 transition-all duration-500 ease-in-out",
+                isInputFocused
+                  ? "flex-1 max-h-[50%]" // constrain to top half of visible area when keyboard open
+                  : "my-auto pt-4 pb-4 md:pb-8"
               )}>
                 <div className={cn(
                   "transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]",
@@ -450,10 +457,18 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
                     onAnimationComplete={() => setIsInitializing(false)}
                   />
                 </div>
-                <h2 className={cn("font-display font-medium text-[28px] sm:text-[36px] md:text-[44px] text-gray-900 leading-[1.05] tracking-[-0.03em] mb-2 md:mb-3 transition-all duration-700 delay-[600ms]", isInitializing ? "opacity-0 translate-y-4" : "opacity-100 translate-y-0")}>
+                <h2 className={cn(
+                  "font-display font-medium text-gray-900 leading-[1.05] tracking-[-0.03em] mb-2 md:mb-3 transition-all duration-700 delay-[600ms]",
+                  isInputFocused ? "text-[22px] sm:text-[28px]" : "text-[28px] sm:text-[36px] md:text-[44px]",
+                  isInitializing ? "opacity-0 translate-y-4" : "opacity-100 translate-y-0"
+                )}>
                   {greeting}
                 </h2>
-                <p className={cn("text-[13px] sm:text-[14px] text-slate-600 font-medium max-w-[270px] leading-relaxed transition-all duration-700 delay-[700ms]", isInitializing ? "opacity-0 translate-y-4" : "opacity-100 translate-y-0")}>
+                <p className={cn(
+                  "text-[13px] sm:text-[14px] text-slate-600 font-medium max-w-[270px] leading-relaxed transition-all duration-700 delay-[700ms]",
+                  isInitializing ? "opacity-0 translate-y-4" : "opacity-100 translate-y-0",
+                  isInputFocused ? "hidden md:block" : ""
+                )}>
                   Your personal AI study companion for instant answers & summaries.
                 </p>
               </div>
@@ -463,7 +478,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
                 "flex-shrink-0 flex flex-col w-full gap-2 md:gap-3 transition-all duration-500 ease-in-out overflow-hidden",
                 isInitializing ? "max-h-0 opacity-0 pb-0 m-0 pointer-events-none" : 
                 isInputFocused ? "max-h-0 md:max-h-[500px] opacity-0 md:opacity-100 pb-0 md:pb-[80px] m-0 pointer-events-none md:pointer-events-auto" : 
-                "max-h-[500px] opacity-100 pb-[72px] md:pb-[80px] pointer-events-auto"
+                "max-h-[500px] opacity-100 pb-2 md:pb-[80px] pointer-events-auto"
               )}>
                 {SUGGESTIONS.map((suggestion, idx) => (
                   <button
