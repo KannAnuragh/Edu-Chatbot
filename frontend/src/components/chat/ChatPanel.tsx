@@ -436,8 +436,8 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
             /* ─── Welcome Screen ─── */
             <div className="flex-1 flex flex-col items-center animate-fade-in relative z-20 w-full h-full">
 
-              {/* Hero Section — centered vertically in available space */}
-              <div className="flex-1 flex flex-col items-center justify-center text-center w-full pb-4 md:pb-8">
+              {/* Hero Section — centered vertically using my-auto to prevent top overflow */}
+              <div className="flex flex-col items-center text-center w-full my-auto shrink-0 pb-4 md:pb-8 pt-4">
                 <div className={cn(
                   "transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]",
                   isInitializing ? "translate-y-[20vh] scale-125" : "translate-y-0 scale-100"
