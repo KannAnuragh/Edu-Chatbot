@@ -433,13 +433,13 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
           "flex-1 no-scrollbar px-4 relative z-20",
           messages.length === 0
             ? (isInputFocused ? "flex flex-col h-full overflow-hidden pt-14 md:pt-0" : "flex flex-col h-full overflow-y-auto pt-14 md:pt-0")
-            : "overflow-y-auto pb-24 pt-14 md:pt-0"
+            : "overflow-y-auto pb-32 pt-14 md:pt-0"
         )}
       >
-        <div className={cn("max-w-lg mx-auto w-full relative z-20", messages.length === 0 ? "flex-1 flex flex-col h-full" : "space-y-4 pb-2")}>
+        <div className={cn("max-w-lg mx-auto w-full relative z-20", messages.length === 0 ? "flex-grow shrink-0 flex flex-col min-h-full" : "space-y-4 pb-2")}>
           {messages.length === 0 ? (
             /* ─── Welcome Screen ─── */
-            <div className="flex-1 flex flex-col items-center animate-fade-in relative z-20 w-full h-full">
+            <div className="flex-grow shrink-0 flex flex-col items-center animate-fade-in relative z-20 w-full min-h-full">
 
               {/* Top Spacer for Smooth Centering/Positioning */}
               <div 
@@ -494,7 +494,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
                 "flex-shrink-0 flex flex-col w-full gap-2 md:gap-3 transition-[max-height,opacity,padding] duration-500 ease-in-out overflow-hidden",
                 isInitializing ? "max-h-0 opacity-0 pb-0 m-0 pointer-events-none" : 
                 isInputFocused ? "max-h-0 md:max-h-[500px] opacity-0 md:opacity-100 pb-0 md:pb-[80px] m-0 pointer-events-none md:pointer-events-auto" : 
-                "max-h-[500px] opacity-100 pb-[76px] md:pb-[80px] pointer-events-auto"
+                "max-h-[500px] opacity-100 pb-[100px] md:pb-[110px] pointer-events-auto"
               )}>
                 {SUGGESTIONS.map((suggestion, idx) => (
                   <button
