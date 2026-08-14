@@ -436,8 +436,11 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
             /* ─── Welcome Screen ─── */
             <div className="flex-1 flex flex-col items-center animate-fade-in relative z-20 w-full h-full">
 
-              {/* Hero Section — centered vertically using my-auto to prevent top overflow */}
-              <div className="flex flex-col items-center text-center w-full my-auto shrink-0 pb-4 md:pb-8 pt-4">
+              {/* Hero Section */}
+              <div className={cn(
+                "flex flex-col items-center text-center w-full shrink-0 transition-all duration-500",
+                isInputFocused ? "mt-auto pb-4 md:pb-8 pt-4" : "my-auto pb-12 md:pb-16 pt-4"
+              )}>
                 <div className={cn(
                   "transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]",
                   isInitializing ? "translate-y-[20vh] scale-125" : "translate-y-0 scale-100"
@@ -455,34 +458,6 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
                 </p>
               </div>
 
-              {/* Suggestion Cards */}
-              <div className={cn(
-                "flex-shrink-0 flex flex-col w-full gap-2 md:gap-3 transition-all duration-500 ease-in-out overflow-hidden",
-                isInitializing ? "opacity-0 translate-y-4 pointer-events-none" : "translate-y-0 pointer-events-auto",
-                isInputFocused ? "max-h-0 md:max-h-[500px] opacity-0 md:opacity-100 pb-0 md:pb-[80px] m-0" : "max-h-[500px] opacity-100 pb-[72px] md:pb-[80px]"
-              )}>
-                {SUGGESTIONS.map((suggestion, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSuggestionClick(suggestion.title)}
-                    className="w-full flex items-center gap-3 md:gap-4 bg-white/90 backdrop-blur-md rounded-2xl border border-gray-200/90 px-4 py-3 md:px-5 md:py-4 text-left shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(28,77,140,0.12)] hover:border-nimbus/40 hover:bg-white hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200 group"
-                  >
-                    <div className={`w-9 h-9 md:w-11 md:h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${suggestion.iconBg}`}>
-                      {suggestion.icon}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-semibold text-[15px] text-gray-900 mb-0.5 group-hover:text-nimbus transition-colors">
-                        {suggestion.title}
-                      </div>
-                      <div className="text-[13px] text-slate-600 font-normal truncate">
-                        {suggestion.subtitle}
-                      </div>
-                    </div>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 group-hover:text-nimbus group-hover:translate-x-0.5 transition-all flex-shrink-0">
-                      <path d="M9 18l6-6-6-6" />
-                    </svg>
-                  </button>
-                ))}
               </div>
             </div>
           ) : (
