@@ -210,7 +210,7 @@ export default function ProjectPage() {
       </div>
 
       {/* ======== MOBILE LAYOUT (<768px) — Nimbus Style ======== */}
-      <div className="flex md:hidden flex-col h-screen w-full overflow-hidden" style={{ background: "var(--nimbus-bg)" }}>
+      <div className="flex md:hidden flex-col h-[100dvh] w-full overflow-hidden" style={{ background: "var(--nimbus-bg)" }}>
         {/* Mobile Sidebar Drawer */}
         <Sidebar
           activeProjectId={projectId}

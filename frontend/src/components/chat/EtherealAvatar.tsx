@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
 interface EtherealAvatarProps {
@@ -7,6 +7,7 @@ interface EtherealAvatarProps {
 }
 
 export default function EtherealAvatar({ playStartupAnimation = false, onAnimationComplete }: EtherealAvatarProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [transitionSpeed, setTransitionSpeed] = useState('0.1s ease-out');
   const [isBlinking, setIsBlinking] = useState(false);
@@ -59,11 +60,22 @@ export default function EtherealAvatar({ playStartupAnimation = false, onAnimati
     const handleMove = (clientX: number, clientY: number) => {
       setTransitionSpeed('0.1s ease-out'); // Responsive tracking
 
-      const centerX = window.innerWidth / 2;
-      const centerY = window.innerHeight / 2;
+      let moveX = 0;
+      let moveY = 0;
 
-      const moveX = (clientX - centerX) / centerX;
-      const moveY = (clientY - centerY) / centerY;
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const avatarCenterX = rect.left + rect.width / 2;
+        const avatarCenterY = rect.top + rect.height / 2;
+
+        const dx = clientX - avatarCenterX;
+        const dy = clientY - avatarCenterY;
+
+        // Gaze reaches max displacement at 300px away from the avatar center
+        const referenceDistance = 300;
+        moveX = Math.max(-1, Math.min(1, dx / referenceDistance));
+        moveY = Math.max(-1, Math.min(1, dy / referenceDistance));
+      }
 
       const maxDisplacement = 15;
 
@@ -121,7 +133,7 @@ export default function EtherealAvatar({ playStartupAnimation = false, onAnimati
   const showFace = startupPhase >= 1;
 
   return (
-    <div className="relative w-32 h-32 mb-8 flex items-center justify-center animate-[float_4s_ease-in-out_infinite]">
+    <div ref={containerRef} className="relative w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32 mb-4 md:mb-8 flex items-center justify-center animate-[float_4s_ease-in-out_infinite]">
 
       {/* Diffused Aurora Sphere - slowly spinning to create shifting color effect */}
       <div

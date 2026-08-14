@@ -24,14 +24,50 @@ export default function MessageBubble({ message, onSourceClick, onViewNote, onRe
 
   const extractFollowUps = (text: string) => {
     const followUps: string[] = [];
-    // Match [FOLLOWUP: ...] or [QUESTION 1: ...]
-    let cleanText = text.replace(/\[(?:FOLLOWUP|QUESTION\s*\d*):\s*(.*?)\]/gi, (match, p1) => {
-      if (p1.trim()) followUps.push(p1.trim());
+    let cleanText = text;
+
+    // 1. Match bracketed tags like [FOLLOWUP: ...] or [FOLOWUP: ...] or [QUESTION 1: ...]
+    cleanText = cleanText.replace(/\[(?:FOLL?OW-?UP|QUESTION\s*\d*):\s*([\s\S]*?)\]/gi, (match, p1) => {
+      const q = p1.trim();
+      if (q && !followUps.includes(q)) followUps.push(q);
       return "";
     });
-    // Remove variations of "Followup Questions:" header that the LLM might leave behind
-    cleanText = cleanText.replace(/(?:^|\n)\s*(?:\*{0,2})?(?:Follow-?up Questions?:?|Suggested Follow-?ups?:?)(?:\*{0,2})?\s*$/gi, "");
-    return { cleanText: cleanText.trim(), followUps };
+
+    // 2. Match unbracketed tags like FOLLOWUP: ... or FOLOWUP: ... or QUESTION 1: ...
+    cleanText = cleanText.replace(/(?:FOLL?OW-?UP|QUESTION\s*\d*):\s*([\s\S]*?)(?=(?:FOLL?OW-?UP|QUESTION\s*\d*):|$)/gi, (match, p1) => {
+      const q = p1.trim();
+      if (q && !followUps.includes(q)) followUps.push(q);
+      return "";
+    });
+
+    const headerRegex = /(?:\n+|^)\s*(?:\*{0,2})?(?:Follow-?up Questions?:?|Suggested (?:Follow-?ups?|Questions?):?|Related Questions?:?)(?:\*{0,2})?\s*\n+([\s\S]*)$/i;
+    const headerMatch = cleanText.match(headerRegex);
+
+    if (headerMatch) {
+      const trailingBlock = headerMatch[1];
+      const questions = trailingBlock
+        .split(/\n+/)
+        .map((line) => 
+          line
+            // Remove bullets, numbers, or lingering [FOLLOWUP:] prefixes
+            .replace(/^(?:(?:\[)?(?:FOLL?OW-?UP|QUESTION\s*\d*):?\s*\]?|(?:\d+[\.\)]|[-*•]))\s*/i, '')
+            // Remove trailing closing bracket if it was a malformed tag
+            .replace(/\]\s*$/, '')
+            .trim()
+        )
+        .filter((q) => q.length > 5);
+
+      questions.forEach((q) => {
+        if (!followUps.includes(q)) followUps.push(q);
+      });
+
+      cleanText = cleanText.replace(headerRegex, "").trim();
+    }
+
+    // 4. Remove any leftover trailing header lines or extra whitespace
+    cleanText = cleanText.replace(/(?:\n+|^)\s*(?:\*{0,2})?(?:Follow-?up Questions?:?|Suggested (?:Follow-?ups?|Questions?):?|Related Questions?:?)(?:\*{0,2})?\s*$/gi, "").trim();
+
+    return { cleanText, followUps };
   };
 
   const { cleanText, followUps } = extractFollowUps(message.content);
@@ -59,7 +95,7 @@ export default function MessageBubble({ message, onSourceClick, onViewNote, onRe
         className={cn(
           "prose prose-sm max-w-none prose-p:leading-relaxed prose-p:mb-2.5 prose-p:last:mb-0 prose-pre:my-3 prose-li:my-1 prose-headings:font-heading",
           isUser
-            ? "text-white prose-p:text-white prose-strong:text-white prose-headings:text-white prose-li:text-white prose-code:text-amber-200 prose-code:bg-white/10 prose-a:text-amber-300 font-medium"
+            ? "text-white prose-p:text-white prose-strong:text-white prose-headings:text-white prose-li:text-white prose-code:text-blue-100 prose-code:bg-black/20 prose-a:text-blue-200 font-medium"
             : "text-gray-900 prose-p:text-gray-900 prose-strong:text-gray-900 prose-headings:text-gray-900 prose-li:text-gray-900 prose-code:text-nimbus prose-code:bg-gray-100 prose-a:text-nimbus font-medium"
         )}
       >
@@ -68,17 +104,22 @@ export default function MessageBubble({ message, onSourceClick, onViewNote, onRe
     );
   };
 
-  // ─── USER MESSAGE: Modern Minimal Solid ───
+  // ─── USER MESSAGE ───
   if (isUser) {
     return (
       <div className="flex justify-end my-2.5 animate-fade-in-up group">
-        <div 
-          className="bg-[#1C4D8C]/65 backdrop-blur-2xl text-white font-medium px-[18px] py-[12px] rounded-[18px] rounded-br-[4px] text-[15px] max-w-[80%] relative border border-white/35 shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.45),inset_0_-1px_1px_rgba(0,0,0,0.15),0_8px_25px_rgba(28,77,140,0.25)] transition-all"
+        <div
+          className="relative text-white font-medium px-[18px] py-[12px] rounded-[18px] rounded-br-[4px] text-[15px] max-w-[80%] border border-white/15 shadow-[0_4px_14px_rgba(22,51,89,0.35)] transition-all"
+          style={{
+            background: 'linear-gradient(135deg, #1C4D8C 0%, #1C4D8C 25%, #163359 100%)',
+          }}
         >
-          {renderContent(cleanText)}
-          
+          <div className="relative">
+            {renderContent(cleanText)}
+          </div>
+
           {/* Hover Edit Pencil */}
-          <button className="absolute -left-8 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-[#3B82F6] opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full shadow-sm border border-gray-100">
+          <button className="absolute -left-8 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-[#3B82F6] opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur-sm rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.1)] border border-gray-200">
             <Pencil size={14} />
           </button>
         </div>
@@ -117,9 +158,12 @@ export default function MessageBubble({ message, onSourceClick, onViewNote, onRe
 
       {/* White Message Bubble */}
       <div className={cn("flex flex-col gap-1.5 max-w-[85%] min-w-0", isStreaming && "is-streaming")}>
-        <div className="relative bg-white/60 backdrop-blur-2xl text-slate-950 rounded-[14px] rounded-tl-xl p-5 shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.85),inset_0_-1px_1px_rgba(0,0,0,0.04),0_8px_30px_rgba(0,0,0,0.05)] border border-white/70">
+        <div className="relative isolate overflow-hidden bg-white/60 backdrop-blur-2xl text-slate-950 rounded-[14px] rounded-tl-xl p-5 shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.85),inset_0_-1px_1px_rgba(0,0,0,0.04),0_8px_30px_rgba(0,0,0,0.05)] border border-white/70">
+          {/* Glass sheen to match the user bubble's material */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-8 rounded-t-[14px] bg-gradient-to-b from-white/50 to-transparent" />
+
           {/* Message Content */}
-          <div className="text-[15px] leading-relaxed">
+          <div className="relative text-[15px] leading-relaxed">
             {cleanText.trim().length > 0 ? (
               renderContent(cleanText)
             ) : (

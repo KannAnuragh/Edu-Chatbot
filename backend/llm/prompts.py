@@ -38,7 +38,7 @@ INSTRUCTIONS FOR ANSWERING:
 - If the Question is EXACTLY "Explain a concept", you MUST bypass all rules and respond EXACTLY with: "Sure, which concept would you like me to explain?"
 - If the Question is EXACTLY "Summarize a chapter", you MUST bypass all rules and respond EXACTLY with: "Sure, which chapter would you like me to summarize?"
 - If the Question is EXACTLY "Help me study", you MUST bypass all rules and respond EXACTLY with: "Sure, should I summarize or create questions based on the topic you'd like to study?"
-8. FOLLOW-UP QUESTIONS (CRITICAL): At the very end of your response, you MUST provide up to 3 short, relevant follow-up questions that the user could ask next to deepen their understanding of this specific topic. Format them exactly like this on separate lines at the very bottom of your response:
+8. FOLLOW-UP QUESTIONS (CRITICAL): At the very end of your response, you MUST provide up to 3 short, relevant follow-up questions that the user could ask next to deepen their understanding of this specific topic. You MUST use the exact prefix "[FOLLOWUP: " (spelled exactly like this, with two 'L's and no hyphens). Format them exactly like this on separate lines at the very bottom of your response:
 [FOLLOWUP: Question 1 here]
 [FOLLOWUP: Question 2 here]
 [FOLLOWUP: Question 3 here]"""

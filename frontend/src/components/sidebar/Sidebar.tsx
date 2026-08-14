@@ -202,7 +202,7 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
                         <span className="truncate text-[13px] flex-1">{conv.title}</span>
                         <button
                           onClick={(e) => handleDeleteConversation(e, conv.id)}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 rounded transition-all flex-shrink-0 text-gray-400"
+                          className="p-1 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded transition-all flex-shrink-0"
                           title="Delete Chat"
                         >
                           <Trash2 size={13} />
@@ -264,15 +264,6 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
             )}>
               {!minimized && <span>Chats</span>}
               <div className="flex items-center gap-1">
-                {conversations.length > 0 && !minimized && (
-                  <button
-                    onClick={handleClearAllHistory}
-                    className="hover:text-red-600 transition-colors bg-white rounded-md border border-border shadow-sm w-6 h-6 flex items-center justify-center text-muted"
-                    title="Clear All History"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                )}
                 <button
                   onClick={handleNewChat}
                   className={cn(
@@ -322,7 +313,7 @@ export default function Sidebar({ activeProjectId, isMobileOpen, onMobileClose }
                                 <span className="truncate pr-6 text-xs font-medium flex-1">{conv.title}</span>
                                 <button
                                   onClick={(e) => handleDeleteConversation(e, conv.id)}
-                                  className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 rounded transition-all flex-shrink-0"
+                                  className="p-1 text-muted/40 hover:text-red-500 hover:bg-red-50 rounded transition-all flex-shrink-0"
                                   title="Delete Chat"
                                 >
                                   <Trash2 size={13} />
