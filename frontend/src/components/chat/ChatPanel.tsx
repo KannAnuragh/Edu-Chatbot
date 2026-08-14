@@ -592,7 +592,14 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
               value={inputValue}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              onFocus={() => setIsInputFocused(true)}
+              onFocus={() => {
+                setIsInputFocused(true);
+                // Prevent aggressive browser viewport shifting (especially iOS Safari)
+                setTimeout(() => {
+                  window.scrollTo(0, 0);
+                  document.body.scrollTop = 0;
+                }, 50);
+              }}
               onBlur={() => setIsInputFocused(false)}
               placeholder="Ask me anything..."
               className="relative flex-1 max-h-[100px] bg-transparent resize-none outline-none py-1.5 px-1 text-[15px] leading-relaxed no-scrollbar placeholder:text-slate-600 text-slate-950 font-semibold focus:outline-none focus:ring-0"
