@@ -133,11 +133,11 @@ export default function EtherealAvatar({ playStartupAnimation = false, onAnimati
   const showFace = startupPhase >= 1;
 
   return (
-    <div ref={containerRef} className="relative w-28 h-28 sm:w-28 sm:h-28 md:w-32 md:h-32 mb-4 md:mb-8 mx-auto flex items-center justify-center animate-[float_4s_ease-in-out_infinite]">
+    <div ref={containerRef} className="relative w-28 h-28 sm:w-28 sm:h-28 md:w-32 md:h-32 mb-4 md:mb-8 mx-auto flex items-center justify-center animate-[float_4s_ease-in-out_infinite] will-change-transform transform-gpu">
 
       {/* Diffused Aurora Sphere - slowly spinning to create shifting color effect */}
       <div
-        className="absolute inset-0 rounded-full blur-xl opacity-100 animate-[spin_15s_linear_infinite]"
+        className="absolute inset-0 rounded-full blur-lg opacity-100 animate-[spin_15s_linear_infinite] transform-gpu will-change-transform"
         style={{
           background: 'radial-gradient(circle at 35% 35%, #F2F2F2 0%, #1C4D8C 55%, #163359 100%)',
           transform: 'scale(1.15)',
@@ -145,7 +145,7 @@ export default function EtherealAvatar({ playStartupAnimation = false, onAnimati
         }}
       />
       <div
-        className="absolute inset-2 rounded-full blur-lg opacity-90 animate-[spin_10s_linear_infinite_reverse]"
+        className="absolute inset-2 rounded-full blur-md opacity-90 animate-[spin_10s_linear_infinite_reverse] transform-gpu will-change-transform"
         style={{
           background: 'radial-gradient(circle at 65% 65%, #1C4D8C 0%, #163359 50%, #F2F2F2 100%)',
           transform: 'scale(1.05)'
@@ -156,7 +156,7 @@ export default function EtherealAvatar({ playStartupAnimation = false, onAnimati
       <svg
         viewBox="0 0 100 100"
         className={cn(
-          "relative z-10 w-full h-full text-white drop-shadow-lg overflow-visible transition-all duration-500 ease-out",
+          "relative z-10 w-full h-full text-white overflow-visible transition-[opacity,transform] duration-500 ease-out",
           showFace ? "opacity-100 scale-100" : "opacity-0 scale-50"
         )}
       >

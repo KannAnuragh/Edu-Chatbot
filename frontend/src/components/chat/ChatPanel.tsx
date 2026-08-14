@@ -394,16 +394,16 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
       {/* Aurora Background */}
       <div
         className={cn(
-          "aurora-bg transition-all duration-[1500ms] ease-in-out z-0 pointer-events-none",
+          "aurora-bg transition-[opacity,height] duration-[1500ms] ease-in-out z-0 pointer-events-none will-change-[opacity,height]",
           isInputFocused
             ? "h-[50%] opacity-100"
             : (messages.length === 0 && isInitializing) ? "opacity-0" :
               "h-[35%] opacity-90"
         )}
       >
-        <div className={cn("aurora-blob aurora-blob-1 transition-all duration-[1500ms] ease-in-out", isInputFocused ? "opacity-100 scale-125 -translate-y-6" : "opacity-75 scale-100 translate-y-0")} />
-        <div className={cn("aurora-blob aurora-blob-2 transition-all duration-[1500ms] ease-in-out", isInputFocused ? "!bg-[#3B82F6] opacity-95 scale-125 -translate-y-4" : "opacity-65 scale-100 translate-y-0")} />
-        <div className={cn("aurora-blob aurora-blob-3 transition-all duration-[1500ms] ease-in-out", isInputFocused ? "opacity-100 scale-120 -translate-y-8" : "opacity-70 scale-100 translate-y-0")} />
+        <div className={cn("aurora-blob aurora-blob-1 transition-[transform,opacity] duration-[1500ms] ease-in-out will-change-transform transform-gpu", isInputFocused ? "opacity-100 scale-125 -translate-y-6" : "opacity-75 scale-100 translate-y-0")} />
+        <div className={cn("aurora-blob aurora-blob-2 transition-[transform,opacity] duration-[1500ms] ease-in-out will-change-transform transform-gpu", isInputFocused ? "!bg-[#3B82F6] opacity-95 scale-125 -translate-y-4" : "opacity-65 scale-100 translate-y-0")} />
+        <div className={cn("aurora-blob aurora-blob-3 transition-[transform,opacity] duration-[1500ms] ease-in-out will-change-transform transform-gpu", isInputFocused ? "opacity-100 scale-120 -translate-y-8" : "opacity-70 scale-100 translate-y-0")} />
       </div>
 
       {/* Side Border Aurora (Generating State) */}
@@ -414,9 +414,9 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
         )}
       >
         {/* Left Edge Aurora */}
-        <div className="absolute top-[20%] -left-[80px] w-[140px] h-[50%] bg-[#3B82F6]/30 blur-[65px] rounded-full mix-blend-screen animate-pulse" style={{ animationDuration: '3s' }} />
+        <div className="absolute top-[20%] -left-[80px] w-[140px] h-[50%] bg-[#3B82F6]/30 blur-[40px] rounded-full animate-pulse transform-gpu" style={{ animationDuration: '3s' }} />
         {/* Right Edge Aurora */}
-        <div className="absolute top-[35%] -right-[80px] w-[140px] h-[45%] bg-[#1C4D8C]/40 blur-[65px] rounded-full mix-blend-screen animate-pulse" style={{ animationDuration: '4s' }} />
+        <div className="absolute top-[35%] -right-[80px] w-[140px] h-[45%] bg-[#1C4D8C]/40 blur-[40px] rounded-full animate-pulse transform-gpu" style={{ animationDuration: '4s' }} />
       </div>
 
       {/* Messages Area */}
@@ -443,7 +443,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
 
               {/* Top Spacer for Smooth Centering/Positioning */}
               <div 
-                className="w-full transition-all duration-500 ease-in-out shrink-0"
+                className="w-full transition-[flex-grow,flex-basis] duration-500 ease-in-out shrink-0"
                 style={{
                   flexGrow: isInputFocused ? 0 : 1,
                   flexBasis: isInputFocused ? '10%' : '0px'
@@ -452,11 +452,11 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
 
               {/* Hero Section */}
               <div className={cn(
-                "flex flex-col items-center text-center w-full shrink-0 transition-all duration-500 ease-in-out",
+                "flex flex-col items-center text-center w-full shrink-0 transition-[padding,margin] duration-500 ease-in-out",
                 isInputFocused ? "pb-0" : "pt-4 pb-4 md:pb-8"
               )}>
                 <div className={cn(
-                  "transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform-gpu",
+                  "transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] transform-gpu will-change-transform",
                   isInitializing ? "scale-110" : "scale-100",
                   isInputFocused ? "scale-75 md:scale-100 origin-top mb-[-1rem]" : ""
                 )}>
@@ -466,14 +466,14 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
                   />
                 </div>
                 <h2 className={cn(
-                  "font-display font-medium text-gray-900 leading-[1.05] tracking-[-0.03em] mb-2 md:mb-3 transition-all duration-700 delay-[600ms]",
+                  "font-display font-medium text-gray-900 leading-[1.05] tracking-[-0.03em] mb-2 md:mb-3 transition-[opacity,transform,font-size] duration-700 delay-[600ms]",
                   isInputFocused ? "text-[22px] sm:text-[28px]" : "text-[28px] sm:text-[36px] md:text-[44px]",
                   isInitializing ? "opacity-0 translate-y-4" : "opacity-100 translate-y-0"
                 )}>
                   {greeting}
                 </h2>
                 <p className={cn(
-                  "text-[13px] sm:text-[14px] text-slate-600 font-medium max-w-[270px] leading-relaxed transition-all duration-700 delay-[700ms]",
+                  "text-[13px] sm:text-[14px] text-slate-600 font-medium max-w-[270px] leading-relaxed transition-[opacity,transform] duration-700 delay-[700ms]",
                   isInitializing ? "opacity-0 translate-y-4" : "opacity-100 translate-y-0",
                   isInputFocused ? "hidden md:block" : ""
                 )}>
@@ -483,7 +483,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
 
               {/* Bottom Spacer for Smooth Centering */}
               <div 
-                className="w-full transition-all duration-500 ease-in-out shrink-0"
+                className="w-full transition-[flex-grow] duration-500 ease-in-out shrink-0"
                 style={{
                   flexGrow: 1
                 }}
@@ -491,7 +491,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
 
               {/* Suggestion Cards */}
               <div className={cn(
-                "flex-shrink-0 flex flex-col w-full gap-2 md:gap-3 transition-all duration-500 ease-in-out overflow-hidden",
+                "flex-shrink-0 flex flex-col w-full gap-2 md:gap-3 transition-[max-height,opacity,padding] duration-500 ease-in-out overflow-hidden",
                 isInitializing ? "max-h-0 opacity-0 pb-0 m-0 pointer-events-none" : 
                 isInputFocused ? "max-h-0 md:max-h-[500px] opacity-0 md:opacity-100 pb-0 md:pb-[80px] m-0 pointer-events-none md:pointer-events-auto" : 
                 "max-h-[500px] opacity-100 pb-[76px] md:pb-[80px] pointer-events-auto"
@@ -500,7 +500,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
                   <button
                     key={idx}
                     onClick={() => handleSuggestionClick(suggestion.title)}
-                    className="w-full flex items-center gap-3 md:gap-4 bg-white/90 backdrop-blur-md rounded-2xl border border-gray-200/90 px-4 py-3 md:px-5 md:py-4 text-left shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(28,77,140,0.12)] hover:border-nimbus/40 hover:bg-white hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200 group"
+                    className="w-full flex items-center gap-3 md:gap-4 bg-white/95 rounded-2xl border border-gray-200/90 px-4 py-3 md:px-5 md:py-4 text-left shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(28,77,140,0.12)] hover:border-nimbus/40 hover:bg-white hover:-translate-y-0.5 active:scale-[0.99] transition-[transform,shadow,border-color] duration-200 group transform-gpu"
                   >
                     <div className={`w-9 h-9 md:w-11 md:h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${suggestion.iconBg}`}>
                       {suggestion.icon}
@@ -568,20 +568,20 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
 
       {/* ─── Composer Area — Floating Unified Input Pill (Perfect Alignment) ─── */}
       <div className={cn(
-        "absolute bottom-0 left-0 right-0 px-4 pt-12 pb-4 md:pb-5 bg-gradient-to-t from-[var(--nimbus-bg)]/60 via-[var(--nimbus-bg)]/20 to-transparent pointer-events-none z-30 transition-all duration-700 delay-[900ms]",
+        "absolute bottom-0 left-0 right-0 px-4 pt-12 pb-4 md:pb-5 bg-gradient-to-t from-[var(--nimbus-bg)]/60 via-[var(--nimbus-bg)]/20 to-transparent pointer-events-none z-30 transition-[opacity,transform] duration-700 delay-[900ms]",
         (messages.length === 0 && isInitializing) ? "opacity-0 translate-y-8" : "opacity-100 translate-y-0"
       )} style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         <div className="max-w-lg mx-auto pointer-events-auto">
           {/* Single Unified Floating Pill Box */}
           <div
-            className="group relative isolate overflow-hidden flex items-center gap-2 rounded-full backdrop-blur-2xl px-4 py-2 transition-all shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.9),inset_0_-1px_1px_rgba(0,0,0,0.04),0_10px_30px_rgba(28,77,140,0.16)]"
+            className="group relative isolate overflow-hidden flex items-center gap-2 rounded-full backdrop-blur-lg px-4 py-2 transition-shadow shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.9),inset_0_-1px_1px_rgba(0,0,0,0.04),0_10px_30px_rgba(28,77,140,0.16)]"
             style={{
               background:
                 'linear-gradient(160deg, rgba(255,255,255,0.82) 0%, rgba(232,240,251,0.7) 100%)',
             }}
           >
             {/* Adaptive glass border - blends with whatever is behind the pill */}
-            <div className="pointer-events-none absolute inset-0 rounded-full border border-white/40 mix-blend-soft-light" />
+            <div className="pointer-events-none absolute inset-0 rounded-full border border-white/40" />
             {/* Quiet static ring */}
             <div className="pointer-events-none absolute inset-0 rounded-full border border-white/25" />
             {/* Glass sheen across the top, same treatment as the message bubbles */}
@@ -612,7 +612,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
               onClick={() => handleSend()}
               disabled={!inputValue.trim() || isTyping}
               className={cn(
-                "group/btn relative isolate z-10 overflow-hidden w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all",
+                "group/btn relative isolate z-10 overflow-hidden w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-[transform,background-color] transform-gpu",
                 inputValue.trim() && !isTyping
                   ? "text-white hover:scale-105 active:scale-95 border border-white/15 shadow-[0_4px_14px_rgba(22,51,89,0.35)]"
                   : "bg-slate-200/80 text-slate-400 border border-slate-300/40 cursor-not-allowed"

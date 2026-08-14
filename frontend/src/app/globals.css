@@ -425,13 +425,15 @@ body {
 
 .aurora-blob {
   position: absolute;
-  filter: blur(65px);
+  filter: blur(45px);
   opacity: 0.75;
   animation: aurora-float 15s ease-in-out infinite alternate;
   /* Start with an organic blob shape */
   border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
   transform-origin: center;
-  transition: background 1.5s cubic-bezier(0.4, 0, 0.2, 1), transform 1.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1), filter 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+  transform: translateZ(0);
+  transition: transform 1.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .aurora-blob-1 {
@@ -441,7 +443,6 @@ body {
   bottom: -15vw;
   left: -15vw;
   animation-duration: 14s;
-  transition: background 1.5s cubic-bezier(0.4, 0, 0.2, 1), transform 1.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .aurora-blob-2 {
@@ -453,7 +454,6 @@ body {
   animation-duration: 18s;
   animation-delay: -5s;
   opacity: 0.65;
-  transition: background 1.5s cubic-bezier(0.4, 0, 0.2, 1), transform 1.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .aurora-blob-3 {
@@ -465,12 +465,11 @@ body {
   animation-duration: 16s;
   animation-delay: -8s;
   opacity: 0.7;
-  transition: background 1.5s cubic-bezier(0.4, 0, 0.2, 1), transform 1.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @media (min-width: 768px) {
   .aurora-blob {
-    filter: blur(95px);
+    filter: blur(65px);
   }
 }
 
