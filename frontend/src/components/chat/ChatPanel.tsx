@@ -427,11 +427,11 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
       >
         <div className={cn("max-w-lg mx-auto w-full relative z-20", messages.length === 0 ? "flex-1 flex flex-col h-full" : "space-y-4 pb-2")}>
           {messages.length === 0 ? (
-            /* ─── Mindmate-Inspired Welcome Screen (50/50 split) ─── */
-            <div className="flex-1 flex flex-col items-center justify-between animate-fade-in relative z-20 w-full h-full">
+            /* ─── Welcome Screen ─── */
+            <div className="flex-1 flex flex-col items-center justify-end animate-fade-in relative z-20 w-full h-full">
 
-              {/* Top Section - Hero Section */}
-              <div className="flex-1 flex flex-col items-center justify-end text-center w-full pb-3 md:pb-4">
+              {/* Hero Section — natural height, no flex-1 */}
+              <div className="flex flex-col items-center text-center w-full pb-4 md:pb-6">
                 <div className={cn(
                   "transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]",
                   isInitializing ? "translate-y-[20vh] scale-125" : "translate-y-0 scale-100"
@@ -449,8 +449,12 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
                 </p>
               </div>
 
-              {/* Bottom Section - Actionable Suggestion Cards Grid */}
-              <div className={cn("flex-shrink-0 flex flex-col justify-end w-full pb-[72px] md:pb-[80px] gap-2 md:gap-3 transition-all duration-700 delay-[800ms]", isInitializing ? "opacity-0 translate-y-4 pointer-events-none" : "opacity-100 translate-y-0 pointer-events-auto")}>
+              {/* Suggestion Cards */}
+              <div className={cn(
+                "flex-shrink-0 flex flex-col w-full gap-2 md:gap-3 transition-all duration-500 ease-in-out overflow-hidden",
+                isInitializing ? "opacity-0 translate-y-4 pointer-events-none" : "translate-y-0 pointer-events-auto",
+                isInputFocused ? "max-h-0 md:max-h-[500px] opacity-0 md:opacity-100 pb-0 md:pb-[80px] m-0" : "max-h-[500px] opacity-100 pb-[72px] md:pb-[80px]"
+              )}>
                 {SUGGESTIONS.map((suggestion, idx) => (
                   <button
                     key={idx}
