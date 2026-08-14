@@ -423,15 +423,21 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
       <div
         ref={scrollRef}
         onScroll={handleScroll}
+        onPointerDown={() => {
+          // Dismiss keyboard when tapping the background on mobile
+          if (isInputFocused && textareaRef.current) {
+            textareaRef.current.blur();
+          }
+        }}
         className={cn("flex-1 overflow-y-auto no-scrollbar px-4 relative z-20", messages.length === 0 ? "flex flex-col h-full" : "pb-24")}
       >
         <div className={cn("max-w-lg mx-auto w-full relative z-20", messages.length === 0 ? "flex-1 flex flex-col h-full" : "space-y-4 pb-2")}>
           {messages.length === 0 ? (
             /* ─── Welcome Screen ─── */
-            <div className="flex-1 flex flex-col items-center justify-end animate-fade-in relative z-20 w-full h-full">
+            <div className="flex-1 flex flex-col items-center animate-fade-in relative z-20 w-full h-full">
 
-              {/* Hero Section — natural height, no flex-1 */}
-              <div className="flex flex-col items-center text-center w-full pb-4 md:pb-6">
+              {/* Hero Section — centered vertically in available space */}
+              <div className="flex-1 flex flex-col items-center justify-center text-center w-full pb-4 md:pb-8">
                 <div className={cn(
                   "transition-all duration-1000 ease-[cubic-bezier(0.16,1,0.3,1)]",
                   isInitializing ? "translate-y-[20vh] scale-125" : "translate-y-0 scale-100"
