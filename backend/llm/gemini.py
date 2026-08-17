@@ -126,6 +126,10 @@ class GeminiClient:
                     print(f"❌ [GEMINI 404 MODEL NOT FOUND] Invalid model name '{settings.LLM_MODEL}': {e}", flush=True)
                     yield f"\n\n[Google Gemini Error (404 Not Found): The model name `{settings.LLM_MODEL}` does not exist in Google AI Studio. Please check `LLM_MODEL` in your `backend/.env` file and set it to a valid model such as `gemini-2.0-flash`, `gemini-2.0-flash-lite`, or `gemini-1.5-flash`.]"
                     return
+                elif "Expecting property name" in err_str or "JSONDecodeError" in err_str or "char 1" in err_str:
+                    print(f"❌ [GEMINI API KEY ERROR] Invalid API response from Gemini: {e}", flush=True)
+                    yield f"\n\n[Google Gemini API Error: The API returned an invalid response (non-JSON). This typically occurs when `GEMINI_API_KEY` in `backend/.env` is invalid or expired. Please verify your Google AI Studio API Key (which starts with `AIzaSy...`) in `backend/.env`, set `LLM_MODEL=gemini-2.0-flash`, and restart the backend.]"
+                    return
                 else:
                     print(f"Gemini Streaming Error: {e}")
                     yield f"\n\n[Error generating response: {err_str}]"
@@ -152,6 +156,9 @@ class GeminiClient:
             
             return response.text
         except Exception as e:
+            err_str = str(e)
+            if "Expecting property name" in err_str or "JSONDecodeError" in err_str or "char 1" in err_str:
+                return "Error: Invalid response from Gemini API. Please check GEMINI_API_KEY (starts with 'AIzaSy...') and LLM_MODEL in backend/.env."
             print(f"Gemini Error: {e}")
             return f"Error generating response: {str(e)}"
 
@@ -175,6 +182,9 @@ class GeminiClient:
             
             return response.text
         except Exception as e:
+            err_str = str(e)
+            if "Expecting property name" in err_str or "JSONDecodeError" in err_str or "char 1" in err_str:
+                return "Error: Invalid response from Gemini API. Please check GEMINI_API_KEY (starts with 'AIzaSy...') and LLM_MODEL in backend/.env."
             print(f"Gemini Async Error: {e}")
             return f"Error generating response: {str(e)}"
 
