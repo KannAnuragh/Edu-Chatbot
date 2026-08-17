@@ -25,18 +25,23 @@ from core.database import async_session_factory
 # Minimum cosine similarity score to consider a chunk relevant
 RELEVANCE_THRESHOLD = 0.20
 
+# Pre-compiled regex patterns for chunk sanitization (avoid recompiling per-call)
+_RE_LONG_NUMBERS = re.compile(r'[0-9]{15,}')
+_RE_SCERT_HEADER = re.compile(r'സാമൂഹ്യശാസ്[്രത]*ം.*?സംസ്കാരവും ദശീേയതയും')
+_RE_MULTI_SPACES = re.compile(r'\s+')
+
 def sanitize_chunk_text(text: str) -> str:
     """Dynamically clean chunk text before sending to LLM to remove PDF extraction artifacts."""
     if not text:
         return ""
     # 1. Remove long numerical FML artifacts (like 12345678901234567890...)
-    text = re.sub(r'[0-9]{15,}', '', text)
+    text = _RE_LONG_NUMBERS.sub('', text)
     # 2. Remove repeating SCERT PDF headers and footers
-    text = re.sub(r'സാമൂഹ്യശാസ്[്രത]*ം.*?സംസ്കാരവും ദശീേയതയും', '', text)
+    text = _RE_SCERT_HEADER.sub('', text)
     # 3. Apply the dynamic font artifact fixer (in case chunks were embedded BEFORE the new pipeline)
     text = fix_malayalam_pdf_font_artifacts(text)
     # 4. Clean up any remaining multiple spaces left by deletions
-    text = re.sub(r'\s+', ' ', text).strip()
+    text = _RE_MULTI_SPACES.sub(' ', text).strip()
     return text
 
 
@@ -125,8 +130,8 @@ class ChatService:
                     return
                 # ----------------------------------------
 
-                # 2.5. Optimize Search Query
-                yield f"event: status\ndata: {json.dumps({'message': 'Optimizing search query...'})}\n\n"
+                # 2.5. Load history + conditionally optimize search query
+                yield f"event: status\ndata: {json.dumps({'message': 'Searching documents...'})}\n\n"
                 
                 # Load history messages for query optimization and building prompt
                 history_result = await db.execute(
@@ -137,30 +142,37 @@ class ChatService:
                 all_messages = history_result.scalars().all()
                 history_messages = all_messages[:-1] if len(all_messages) > 1 else []
 
+                # OPTIMIZATION: Skip the expensive LLM query-optimization call when:
+                # 1. No conversation history (first message — nothing to resolve)
+                # 2. Message is self-contained (>50 chars — unlikely to be "tell me more")
+                needs_optimization = bool(history_messages) and len(message_text.strip()) <= 50
+                
                 t_opt_start = time.time()
-                from llm.prompts import QUERY_OPTIMIZATION_PROMPT
-                history_str = ""
-                if history_messages:
+                if needs_optimization:
+                    from llm.prompts import QUERY_OPTIMIZATION_PROMPT
+                    history_str = ""
                     for msg in history_messages[-6:]:
                         role = "Student" if msg.role == MessageRole.USER else "Assistant"
                         history_str += f"{role}: {msg.content}\n"
-                
-                opt_prompt = QUERY_OPTIMIZATION_PROMPT.format(history=history_str, query=message_text)
-                
-                # Run synchronous generation in a thread so we don't block the async event loop
-                optimized_query = await asyncio.to_thread(llm_client.generate_response, opt_prompt)
-                
-                if not optimized_query:
-                    optimized_query = message_text
-                else:
-                    optimized_query = optimized_query.strip()
                     
-                t_opt_end = time.time()
-                print(f"⏱️ [QUERY OPTIMIZATION] Took {t_opt_end - t_opt_start:.2f}s | Original: '{message_text}' | Optimized: '{optimized_query}'", flush=True)
+                    opt_prompt = QUERY_OPTIMIZATION_PROMPT.format(history=history_str, query=message_text)
+                    
+                    # Use native async instead of asyncio.to_thread (avoids thread pool overhead)
+                    optimized_query = await llm_client.generate_response_async(opt_prompt)
+                    
+                    if not optimized_query:
+                        optimized_query = message_text
+                    else:
+                        optimized_query = optimized_query.strip()
+                    
+                    t_opt_end = time.time()
+                    print(f"⏱️ [QUERY OPTIMIZATION] Took {t_opt_end - t_opt_start:.2f}s | Original: '{message_text}' | Optimized: '{optimized_query}'", flush=True)
+                else:
+                    optimized_query = message_text
+                    t_opt_end = time.time()
+                    print(f"⚡ [QUERY OPTIMIZATION] Skipped (no history or self-contained query) | Using raw query: '{message_text}' | {t_opt_end - t_opt_start:.4f}s", flush=True)
 
-                yield f"event: status\ndata: {json.dumps({'message': 'Searching documents...'})}\n\n"
-
-                # 3. Retrieve relevant chunks using the optimized query
+                # 3. Retrieve relevant chunks using the (possibly optimized) query
                 t_retrieval_start = time.time()
                 raw_chunks = await self.retrieval.retrieve_relevant_chunks(
                     user_id=str(user_id) if user_id else None,

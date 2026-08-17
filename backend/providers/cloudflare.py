@@ -14,6 +14,22 @@ from core.config import settings
 from llm.prompts import SYSTEM_PROMPT
 from providers.base import BaseEmbeddingProvider, BaseVectorDBProvider, BaseLLMProvider
 
+# ── Shared httpx clients for connection reuse (avoids TCP+TLS handshake per request) ──
+_shared_sync_client: httpx.Client | None = None
+_shared_async_client: httpx.AsyncClient | None = None
+
+def _get_shared_sync_client() -> httpx.Client:
+    global _shared_sync_client
+    if _shared_sync_client is None or _shared_sync_client.is_closed:
+        _shared_sync_client = httpx.Client(timeout=45.0)
+    return _shared_sync_client
+
+def _get_shared_async_client() -> httpx.AsyncClient:
+    global _shared_async_client
+    if _shared_async_client is None or _shared_async_client.is_closed:
+        _shared_async_client = httpx.AsyncClient(timeout=30.0)
+    return _shared_async_client
+
 
 def _get_cf_headers():
     return {
@@ -134,53 +150,53 @@ class CloudflareEmbeddingProvider(BaseEmbeddingProvider):
 
     def encode_query(self, query: str) -> List[float]:
         clean_query = query.strip() if query and query.strip() else " "
-        with httpx.Client() as client:
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    response = client.post(
-                        self._get_url(),
-                        headers=_get_cf_headers(),
-                        json={"text": clean_query},
-                        timeout=15.0
-                    )
-                    if response.status_code == 429:
-                        wait_time = 2 ** attempt
-                        print(f"⚠️ Cloudflare rate limit hit (429) for query. Retrying in {wait_time}s...", flush=True)
-                        time.sleep(wait_time)
-                        continue
-                    
-                    if not response.is_success:
-                        print(f"❌ Cloudflare Query Embedding Error ({response.status_code}): {response.text}", flush=True)
-                        if response.status_code in [401, 403]:
-                            print(f"🚫 Cloudflare Authentication Error ({response.status_code}): Please check CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in .env", flush=True)
-                            response.raise_for_status()
+        client = _get_shared_sync_client()
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = client.post(
+                    self._get_url(),
+                    headers=_get_cf_headers(),
+                    json={"text": clean_query},
+                    timeout=15.0
+                )
+                if response.status_code == 429:
+                    wait_time = 2 ** attempt
+                    print(f"⚠️ Cloudflare rate limit hit (429) for query. Retrying in {wait_time}s...", flush=True)
+                    time.sleep(wait_time)
+                    continue
+                
+                if not response.is_success:
+                    print(f"❌ Cloudflare Query Embedding Error ({response.status_code}): {response.text}", flush=True)
+                    if response.status_code in [401, 403]:
+                        print(f"🚫 Cloudflare Authentication Error ({response.status_code}): Please check CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in .env", flush=True)
                         response.raise_for_status()
-                    
-                    break
-                except httpx.HTTPStatusError as http_err:
-                    if http_err.response.status_code in [401, 403]:
-                        raise http_err
-                    if attempt == max_retries - 1:
-                        raise http_err
-                    time.sleep(1)
-                except (httpx.HTTPError, Exception) as e:
-                    if attempt == max_retries - 1:
-                        raise e
-                    time.sleep(1)
-            
-            data = response.json()
-            data_result = data.get("result", {}).get("data", [])
-            
-            # Handle both 2D [[vec]] and flat [vec] response formats
-            if len(data_result) > 0 and isinstance(data_result[0], list):
-                vector = data_result[0]
-            else:
-                # Flat array — this IS the vector for a single query
-                vector = data_result
-            
-            print(f"📐 [EMBEDDING] Query vector dimension: {len(vector)}", flush=True)
-            return vector
+                    response.raise_for_status()
+                
+                break
+            except httpx.HTTPStatusError as http_err:
+                if http_err.response.status_code in [401, 403]:
+                    raise http_err
+                if attempt == max_retries - 1:
+                    raise http_err
+                time.sleep(1)
+            except (httpx.HTTPError, Exception) as e:
+                if attempt == max_retries - 1:
+                    raise e
+                time.sleep(1)
+        
+        data = response.json()
+        data_result = data.get("result", {}).get("data", [])
+        
+        # Handle both 2D [[vec]] and flat [vec] response formats
+        if len(data_result) > 0 and isinstance(data_result[0], list):
+            vector = data_result[0]
+        else:
+            # Flat array — this IS the vector for a single query
+            vector = data_result
+        
+        print(f"📐 [EMBEDDING] Query vector dimension: {len(vector)}", flush=True)
+        return vector
 
 
 class CloudflareVectorDBProvider(BaseVectorDBProvider):
@@ -287,40 +303,40 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
         
         print(f"🔎 [VECTORIZE SEARCH] Index: {settings.CLOUDFLARE_VECTORIZE_INDEX} | topK: {fetch_limit}", flush=True)
         
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url,
-                headers=_get_cf_headers(),
-                json=payload,
-                timeout=15.0
-            )
-            if not response.is_success:
-                print(f"❌ [VECTORIZE QUERY ERROR] Status: {response.status_code} | Body: {response.text}", flush=True)
-                return []
+        client = _get_shared_async_client()
+        response = await client.post(
+            url,
+            headers=_get_cf_headers(),
+            json=payload,
+            timeout=15.0
+        )
+        if not response.is_success:
+            print(f"❌ [VECTORIZE QUERY ERROR] Status: {response.status_code} | Body: {response.text}", flush=True)
+            return []
                 
-            data = response.json()
-            
-            # Debug: Log raw response structure
-            matches_raw = data.get("result", {}).get("matches", [])
-            print(f"🔎 [VECTORIZE RAW] Got {len(matches_raw)} raw matches from Cloudflare Vectorize", flush=True)
-                        
-            if matches_raw:
-                # Log first match structure for debugging
-                first = matches_raw[0]
-                print(f"🔎 [VECTORIZE FIRST MATCH] id={first.get('id')} score={first.get('score')} metadata_keys={list(first.get('metadata', {}).keys())}", flush=True)
-            
-            results = []
-            for match in matches_raw:
-                if "metadata" in match:
-                    result = dict(match["metadata"])
-                    # CRITICAL: Include the similarity score in results
-                    result["score"] = match.get("score", 0.0)
-                    results.append(result)
+        data = response.json()
+        
+        # Debug: Log raw response structure
+        matches_raw = data.get("result", {}).get("matches", [])
+        print(f"🔎 [VECTORIZE RAW] Got {len(matches_raw)} raw matches from Cloudflare Vectorize", flush=True)
                     
-            # Sort by score descending (highest relevance first)
-            results.sort(key=lambda x: x.get("score", 0.0), reverse=True)
-            
-            return results
+        if matches_raw:
+            # Log first match structure for debugging
+            first = matches_raw[0]
+            print(f"🔎 [VECTORIZE FIRST MATCH] id={first.get('id')} score={first.get('score')} metadata_keys={list(first.get('metadata', {}).keys())}", flush=True)
+        
+        results = []
+        for match in matches_raw:
+            if "metadata" in match:
+                result = dict(match["metadata"])
+                # CRITICAL: Include the similarity score in results
+                result["score"] = match.get("score", 0.0)
+                results.append(result)
+                
+        # Sort by score descending (highest relevance first)
+        results.sort(key=lambda x: x.get("score", 0.0), reverse=True)
+        
+        return results
 
     async def delete_document_vectors(self, user_id: str, document_id: str):
         """Delete all chunk vectors belonging to a document from Cloudflare Vectorize."""
@@ -428,6 +444,23 @@ class CloudflareLLMProvider(BaseLLMProvider):
         }
         with httpx.Client() as client:
             response = client.post(url, headers=_get_cf_headers(), json=payload)
+            if response.is_success:
+                data = response.json()
+                return data.get("result", {}).get("response", "")
+            return f"Error: {response.text}"
+
+    async def generate_response_async(self, prompt: str) -> str:
+        """Async version using httpx.AsyncClient directly."""
+        url = self._get_url()
+        payload = {
+            "messages": self._build_messages(prompt),
+            "stream": False,
+            "max_tokens": 4096,
+            "temperature": 0.3,
+            "repetition_penalty": 1.15,
+        }
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=_get_cf_headers(), json=payload, timeout=30.0)
             if response.is_success:
                 data = response.json()
                 return data.get("result", {}).get("response", "")

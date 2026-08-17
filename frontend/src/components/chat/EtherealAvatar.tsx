@@ -137,18 +137,16 @@ export default function EtherealAvatar({ playStartupAnimation = false, onAnimati
 
       {/* Diffused Aurora Sphere - slowly spinning to create shifting color effect */}
       <div
-        className="absolute inset-0 rounded-full blur-lg opacity-100 animate-[spin_15s_linear_infinite] transform-gpu will-change-transform"
+        className="absolute inset-0 rounded-full blur-lg opacity-100 animate-[spin_15s_linear_infinite] transform-gpu will-change-transform scale-[1.15]"
         style={{
           background: 'radial-gradient(circle at 35% 35%, #F2F2F2 0%, #1C4D8C 55%, #163359 100%)',
-          transform: 'scale(1.15)',
           boxShadow: '0 10px 40px rgba(28, 77, 140, 0.4)'
         }}
       />
       <div
-        className="absolute inset-2 rounded-full blur-md opacity-90 animate-[spin_10s_linear_infinite_reverse] transform-gpu will-change-transform"
+        className="absolute inset-2 rounded-full blur-md opacity-90 animate-[spin_10s_linear_infinite_reverse] transform-gpu will-change-transform scale-[1.05]"
         style={{
-          background: 'radial-gradient(circle at 65% 65%, #1C4D8C 0%, #163359 50%, #F2F2F2 100%)',
-          transform: 'scale(1.05)'
+          background: 'radial-gradient(circle at 65% 65%, #1C4D8C 0%, #163359 50%, #F2F2F2 100%)'
         }}
       />
 

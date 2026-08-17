@@ -433,7 +433,7 @@ body {
   transform-origin: center;
   will-change: transform;
   transform: translateZ(0);
-  transition: transform 1.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 1.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .aurora-blob-1 {
@@ -480,17 +480,17 @@ body {
   }
 
   33% {
-    transform: translate(8vw, -8vh) scale(1.15) rotate(15deg);
+    transform: translate(8%, -15%) scale(1.15) rotate(15deg);
     border-radius: 70% 30% 50% 50% / 30% 30% 70% 70%;
   }
 
   66% {
-    transform: translate(-6vw, 4vh) scale(0.9) rotate(-10deg);
+    transform: translate(-6%, 8%) scale(0.9) rotate(-10deg);
     border-radius: 100% 60% 60% 100% / 100% 100% 60% 60%;
   }
 
   100% {
-    transform: translate(4vw, -10vh) scale(1.1) rotate(5deg);
+    transform: translate(4%, -18%) scale(1.1) rotate(5deg);
     border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
   }
 }

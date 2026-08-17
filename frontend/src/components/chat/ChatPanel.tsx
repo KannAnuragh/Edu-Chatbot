@@ -401,9 +401,21 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
               "h-[35%] opacity-90"
         )}
       >
-        <div className={cn("aurora-blob aurora-blob-1 transition-[transform,opacity] duration-[1500ms] ease-in-out will-change-transform transform-gpu", isInputFocused ? "opacity-100 scale-125 -translate-y-6" : "opacity-75 scale-100 translate-y-0")} />
-        <div className={cn("aurora-blob aurora-blob-2 transition-[transform,opacity] duration-[1500ms] ease-in-out will-change-transform transform-gpu", isInputFocused ? "!bg-[#3B82F6] opacity-95 scale-125 -translate-y-4" : "opacity-65 scale-100 translate-y-0")} />
-        <div className={cn("aurora-blob aurora-blob-3 transition-[transform,opacity] duration-[1500ms] ease-in-out will-change-transform transform-gpu", isInputFocused ? "opacity-100 scale-120 -translate-y-8" : "opacity-70 scale-100 translate-y-0")} />
+        {/* Blob 1 Wrapper (Handles scale/translate transitions) */}
+        <div className={cn("absolute inset-0 transition-all duration-[1500ms] ease-in-out will-change-transform transform-gpu pointer-events-none", isInputFocused ? "opacity-100 scale-125 -translate-y-6" : "opacity-75 scale-100 translate-y-0")}>
+          {/* Inner Blob (Handles continuous floating animation) */}
+          <div className="aurora-blob aurora-blob-1" />
+        </div>
+
+        {/* Blob 2 Wrapper */}
+        <div className={cn("absolute inset-0 transition-all duration-[1500ms] ease-in-out will-change-transform transform-gpu pointer-events-none", isInputFocused ? "opacity-95 scale-125 -translate-y-4" : "opacity-65 scale-100 translate-y-0")}>
+          <div className={cn("aurora-blob aurora-blob-2 transition-colors duration-[1500ms]", isInputFocused && "!bg-[#3B82F6]")} />
+        </div>
+
+        {/* Blob 3 Wrapper */}
+        <div className={cn("absolute inset-0 transition-all duration-[1500ms] ease-in-out will-change-transform transform-gpu pointer-events-none", isInputFocused ? "opacity-100 scale-120 -translate-y-8" : "opacity-70 scale-100 translate-y-0")}>
+          <div className="aurora-blob aurora-blob-3" />
+        </div>
       </div>
 
       {/* Side Border Aurora (Generating State) */}

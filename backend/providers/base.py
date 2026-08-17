@@ -41,3 +41,7 @@ class BaseLLMProvider:
 
     def generate_response(self, prompt: str) -> str:
         raise NotImplementedError
+
+    async def generate_response_async(self, prompt: str) -> str:
+        """Async version of generate_response. Avoids thread pool overhead."""
+        raise NotImplementedError

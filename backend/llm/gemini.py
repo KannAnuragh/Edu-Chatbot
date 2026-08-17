@@ -155,6 +155,29 @@ class GeminiClient:
             print(f"Gemini Error: {e}")
             return f"Error generating response: {str(e)}"
 
+    async def generate_response_async(self, prompt: str, system_instruction: str = None) -> str:
+        """Generate a complete response asynchronously using native async API."""
+        client = self._get_client()
+        if not client:
+            error_details = self._last_error or "GEMINI_API_KEY is missing or invalid."
+            return f"Error: {error_details}"
+        
+        try:
+            response = await client.aio.models.generate_content(
+                model=settings.LLM_MODEL,
+                contents=prompt,
+                config=self._get_config(system_instruction=system_instruction)
+            )
+            
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                usage = response.usage_metadata
+                print(f"📊 [GEMINI ASYNC TOKEN USAGE] Input: {getattr(usage, 'prompt_token_count', '?')} | Output: {getattr(usage, 'candidates_token_count', '?')} | Total: {getattr(usage, 'total_token_count', '?')}", flush=True)
+            
+            return response.text
+        except Exception as e:
+            print(f"Gemini Async Error: {e}")
+            return f"Error generating response: {str(e)}"
+
 
 # Global singleton instance
 gemini_client = GeminiClient()
