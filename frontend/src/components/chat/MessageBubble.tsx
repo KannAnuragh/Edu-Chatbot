@@ -64,8 +64,10 @@ export default function MessageBubble({ message, onSourceClick, onViewNote, onRe
       cleanText = cleanText.replace(headerRegex, "").trim();
     }
 
-    // 4. Remove any leftover trailing header lines or extra whitespace
-    cleanText = cleanText.replace(/(?:\n+|^)\s*(?:\*{0,2})?(?:Follow-?up Questions?:?|Suggested (?:Follow-?ups?|Questions?):?|Related Questions?:?)(?:\*{0,2})?\s*$/gi, "").trim();
+    // 4. Remove any leftover trailing header lines, intro sentences, or extra whitespace
+    cleanText = cleanText
+      .replace(/(?:\n+|^)\s*(?:\*{0,2})?(?:(?:To further (?:explore|delve|understand|study)[^,\n]*,?\s*)?(?:here are|below are|some)?\s*(?:\d+|three|few)?\s*(?:potential|suggested|relevant|recommended)?\s*(?:follow-?up\s*questions?|questions?|topics?):?|Follow-?up Questions?:?|Suggested (?:Follow-?ups?|Questions?):?|Related Questions?:?)(?:\*{0,2})?\s*$/gi, "")
+      .trim();
 
     return { cleanText, followUps };
   };

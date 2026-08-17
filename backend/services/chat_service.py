@@ -23,7 +23,7 @@ from ingestion.pipeline import fix_malayalam_pdf_font_artifacts
 from core.database import async_session_factory
 
 # Minimum cosine similarity score to consider a chunk relevant
-RELEVANCE_THRESHOLD = 0.20
+RELEVANCE_THRESHOLD = 0.30
 
 # Pre-compiled regex patterns for chunk sanitization (avoid recompiling per-call)
 _RE_LONG_NUMBERS = re.compile(r'[0-9]{15,}')
