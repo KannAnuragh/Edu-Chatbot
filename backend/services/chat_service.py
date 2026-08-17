@@ -202,7 +202,7 @@ class ChatService:
                 
                 # Only use chunks that exceed the relevance threshold to prevent hallucination from unrelated material
                 if relevant_chunks:
-                    chunks = relevant_chunks[:4]  # Cap at 3 best chunks
+                    chunks = relevant_chunks[:5]  # Cap at 5 best chunks for richer context
                 else:
                     chunks = []
                     print(f"⚠️ [RELEVANCE] All retrieved chunks scored below threshold {RELEVANCE_THRESHOLD}. Treating context as empty.", flush=True)

@@ -382,8 +382,8 @@ class CloudflareLLMProvider(BaseLLMProvider):
             "messages": self._build_messages(prompt),
             "stream": True,
             "max_tokens": 4096,
-            "temperature": 0.1,
-            "repetition_penalty": 1.2,
+            "temperature": 0.3,
+            "repetition_penalty": 1.05,
         }
         
         print(f"🤖 [CLOUDFLARE LLM] Model: {settings.CLOUDFLARE_LLM_MODEL} | Prompt length: {len(prompt)} chars (~{len(prompt) // 4} tokens)", flush=True)
@@ -440,7 +440,7 @@ class CloudflareLLMProvider(BaseLLMProvider):
             "stream": False,
             "max_tokens": 4096,
             "temperature": 0.3,
-            "repetition_penalty": 1.15,
+            "repetition_penalty": 1.05,
         }
         with httpx.Client() as client:
             response = client.post(url, headers=_get_cf_headers(), json=payload)
@@ -457,7 +457,7 @@ class CloudflareLLMProvider(BaseLLMProvider):
             "stream": False,
             "max_tokens": 4096,
             "temperature": 0.3,
-            "repetition_penalty": 1.15,
+            "repetition_penalty": 1.05,
         }
         async with httpx.AsyncClient() as client:
             response = await client.post(url, headers=_get_cf_headers(), json=payload, timeout=30.0)
