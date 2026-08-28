@@ -34,8 +34,17 @@ You ONLY output one JSON object and nothing else.
 Reference Material:
 {context}
 
-Task: Extract exactly 5 DISTINCT, NON-REPETITIVE topics from the Reference Material that would make good short quizzes.
+Task: Extract exactly 5 DISTINCT, NON-REPETITIVE topic NAMES from the Reference Material that would make good short quizzes.
 Every topic MUST be supported by substantive content in the Reference Material.
+
+TOPIC FORMAT RULES:
+- Return topic labels, not questions.
+- Each topic must be a short noun phrase, chapter title, event name, person,
+  movement, institution, or concept (about 2–8 words).
+- Do NOT start a topic with What, Who, When, Where, Why, How, or Which.
+- Do NOT include a question mark, a question verb, or question wording.
+- Good: "Indian Social Reform", "British Colonial Rule", "Quit India Movement".
+- Bad: "How did British colonial rule affect Indian society?".
 
 Output EXACTLY this JSON shape and nothing else (no markdown fences, no preamble, no trailing text):
 {{
@@ -200,7 +209,16 @@ class QuizService:
         if not isinstance(topics, list) or len(topics) < self.MIN_TOPICS:
             return None
 
-        cleaned = [str(t).strip() for t in topics if str(t).strip()]
+        cleaned = []
+        question_starts = re.compile(
+            r"^(what|who|when|where|why|how|which|explain|describe|discuss)\b",
+            re.IGNORECASE,
+        )
+        for topic in topics:
+            value = str(topic).strip().strip("-•")
+            if not value or "?" in value or question_starts.search(value):
+                continue
+            cleaned.append(value)
         return cleaned[:5] if len(cleaned) >= 5 else (cleaned if len(cleaned) >= self.MIN_TOPICS else None)
 
     # ── LLM call #2: build the full quiz ─────────────────────────────────

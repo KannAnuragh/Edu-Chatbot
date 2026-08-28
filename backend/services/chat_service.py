@@ -461,18 +461,74 @@ class ChatService:
             #    this new message normally. We do this by NOT entering the quiz
             #    flow — but we got here because existing_quiz_state is truthy.
             if existing_quiz_state and existing_quiz_state.get("completed"):
-                conversation.quiz_state = None
-                await db.commit()
-                # Send an encouraging completion message and exit. Don't fall
-                # through to RAG (the user already sent "quiz me" or similar;
-                # if they want a new quiz they can re-send).
+                continue_answers = {
+                    "yes", "y", "yeah", "yep", "sure", "ok", "okay",
+                    "continue", "more", "more questions", "ask more",
+                }
+                stop_answers = {"no", "n", "nope", "stop", "quit", "done", "finish"}
+                answer = user_message.strip().lower()
+
+                if answer in continue_answers:
+                    # Reuse the material topics, but put the topic just
+                    # completed first so the student can revise it again.
+                    current_topic = existing_quiz_state.get("topic")
+                    previous_topics = existing_quiz_state.get("topics", [])
+                    next_topics = [current_topic] if current_topic else []
+                    next_topics.extend(
+                        topic for topic in previous_topics
+                        if topic != current_topic
+                    )
+                    next_topics = next_topics[:5]
+
+                    conversation.quiz_state = {
+                        "language": existing_quiz_state.get("language", target_language),
+                        "topic": None,
+                        "topics": next_topics,
+                        "questions": [],
+                        "current_index": 0,
+                        "score": 0,
+                        "completed": False,
+                        "history": [],
+                    }
+                    await db.commit()
+
+                    continue_text = "Sure. Choose a topic for the next 10 questions."
+                    yield f"event: quiz_topics\ndata: {json.dumps({'language': target_language, 'topics': next_topics})}\n\n"
+                    yield f"event: token\ndata: {json.dumps({'text': continue_text})}\n\n"
+                    assistant_msg = Message(
+                        conversation_id=conversation.id,
+                        role=MessageRole.ASSISTANT,
+                        content=continue_text,
+                        sources=[],
+                    )
+                    db.add(assistant_msg)
+                    await db.commit()
+                    yield "event: done\ndata: {}\n\n"
+                    return
+
+                if answer in stop_answers:
+                    conversation.quiz_state = None
+                    await db.commit()
+                    finish_text = "Okay. Your quiz is complete."
+                    yield f"event: token\ndata: {json.dumps({'text': finish_text})}\n\n"
+                    assistant_msg = Message(
+                        conversation_id=conversation.id,
+                        role=MessageRole.ASSISTANT,
+                        content=finish_text,
+                        sources=[],
+                    )
+                    db.add(assistant_msg)
+                    await db.commit()
+                    yield "event: done\ndata: {}\n\n"
+                    return
+
                 if is_quiz_me:
-                    # New "quiz me" — restart the flow.
+                    # New "quiz me" — restart the topic flow.
+                    conversation.quiz_state = None
+                    await db.commit()
                     existing_quiz_state = None
                 else:
-                    finish_text = (
-                        "Your previous quiz is complete! Send 'Quiz me' to start a new one."
-                    )
+                    finish_text = "Reply Yes for 5 more questions, or No to finish."
                     yield f"event: token\ndata: {json.dumps({'text': finish_text})}\n\n"
                     assistant_msg = Message(
                         conversation_id=conversation.id,
@@ -530,7 +586,8 @@ class ChatService:
                 if result["finished"]:
                     summary = (
                         f"\n\n🎯 **Quiz Complete!**\n\n"
-                        f"**Your Score: {result['score']}/{result['total']}**"
+                        f"**Your Score: {result['score']}/{result['total']}**\n\n"
+                        "Would you like 5 more questions? Reply **Yes** or **No**."
                     )
                     feedback = feedback + summary
                     yield f"event: token\ndata: {json.dumps({'text': feedback})}\n\n"
