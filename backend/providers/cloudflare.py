@@ -455,12 +455,16 @@ class CloudflareLLMProvider(BaseLLMProvider):
         payload = {
             "messages": self._build_messages(prompt),
             "stream": False,
-            "max_tokens": 4096,
+            # Structured quiz generation returns ten questions plus options
+            # and explanations; 4096 often truncates the JSON mid-response.
+            "max_tokens": 8192,
             "temperature": 0.3,
             "repetition_penalty": 1.05,
         }
         async with httpx.AsyncClient() as client:
-            response = await client.post(url, headers=_get_cf_headers(), json=payload, timeout=30.0)
+            # Quiz generation uses a larger grounded context and may need
+            # more time than short query-rewriting calls.
+            response = await client.post(url, headers=_get_cf_headers(), json=payload, timeout=90.0)
             if response.is_success:
                 data = response.json()
                 return data.get("result", {}).get("response", "")

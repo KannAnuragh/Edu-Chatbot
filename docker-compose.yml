@@ -50,7 +50,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://aca_user:aca_secret@postgres:5432/aca_db
       DATABASE_URL_SYNC: postgresql://aca_user:aca_secret@postgres:5432/aca_db
       REDIS_URL: redis://redis:6379/0
-      FRONTEND_URL: http://localhost
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
       DEBUG: "False"
     depends_on:
       postgres:

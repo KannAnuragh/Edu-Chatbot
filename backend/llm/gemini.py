@@ -57,6 +57,12 @@ class GeminiClient:
             system_instruction=system_instruction,
             temperature=0.0,
             max_output_tokens=4096,
+            # Hard stop the instant the model tries to fabricate the next
+            # student turn itself (seen in quiz mode: it would grade its own
+            # invented "Student Answer: X" and keep going through several
+            # questions unprompted). A prompt instruction alone wasn't
+            # reliable enough to prevent this — this is a hard boundary.
+            stop_sequences=["Student Answer:"],
         )
 
     async def stream_response(self, prompt: str) -> AsyncGenerator[str, None]:
@@ -178,7 +184,7 @@ class GeminiClient:
             
             if hasattr(response, 'usage_metadata') and response.usage_metadata:
                 usage = response.usage_metadata
-                print(f"📊 [GEMINI ASYNC TOKEN USAGE] Input: {getattr(usage, 'prompt_token_count', '?')} | Output: {getattr(usage, 'candidates_token_count', '?')} | Total: {getattr(usage, 'total_token_count', '?')}", flush=True)
+                print(f" [GEMINI ASYNC TOKEN USAGE] Input: {getattr(usage, 'prompt_token_count', '?')} | Output: {getattr(usage, 'candidates_token_count', '?')} | Total: {getattr(usage, 'total_token_count', '?')}", flush=True)
             
             return response.text
         except Exception as e:

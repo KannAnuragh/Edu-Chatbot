@@ -16,7 +16,8 @@ from sqlalchemy import select
 
 from models.conversation import Conversation, Message, MessageRole
 from services.retrieval_service import RetrievalService
-from llm.prompts import build_rag_prompt
+from services.quiz_service import quiz_service
+from llm.prompts import build_rag_prompt, UngroundedTopicError
 from providers.factory import llm_client
 from ingestion.pipeline import fix_malayalam_pdf_font_artifacts
 
@@ -84,9 +85,10 @@ class ChatService:
                     )
                     if user_id is not None:
                         query = query.where(Conversation.user_id == user_id)
-                        
+
                     result = await db.execute(query)
-                    if not result.scalar_one_or_none():
+                    conversation = result.scalar_one_or_none()
+                    if not conversation:
                         yield f"event: error\ndata: {json.dumps({'error': 'Conversation not found'})}\n\n"
                         return
 
@@ -101,7 +103,38 @@ class ChatService:
 
                 # Send conversation ID to client immediately
                 yield f"event: meta\ndata: {json.dumps({'conversation_id': str(conversation_id)})}\n\n"
-                
+
+                # ─────────────────────────────────────────────────────────
+                # STRUCTURED QUIZ STATE MACHINE
+                # ─────────────────────────────────────────────────────────
+                # The quiz has three phases, all driven by conversation.quiz_state:
+                #   1. "quiz me"          -> quiz_state with topics, awaiting topic pick
+                #   2. topic selected     -> quiz_state with full questions, current_index=0
+                #   3. user submits A/B/C/D -> grade in Python, advance, emit next question
+                # After completion (current_index >= len(questions)) we clear the
+                # state and fall through to normal RAG on the next message.
+                #
+                # Grading is PURE PYTHON — no LLM call. The LLM is only used
+                # twice: once to suggest topics, once to generate the full
+                # question set as strict JSON. Everything else is deterministic.
+                quiz_state = conversation.quiz_state if hasattr(conversation, "quiz_state") else None
+                is_quiz_me = message_text.strip().lower() == "quiz me"
+
+                if is_quiz_me or quiz_state:
+                    async for chunk in self._handle_quiz_flow(
+                        db=db,
+                        conversation=conversation,
+                        user_message=message_text,
+                        existing_quiz_state=quiz_state,
+                        is_quiz_me=is_quiz_me,
+                        course_id=course_id,
+                        user_id=user_id,
+                    ):
+                        yield chunk
+                    return
+
+                # ── End of quiz state machine ──
+
                 # --- FAST PATH FOR SUGGESTION COMMANDS ---
                 message_text_clean = message_text.strip()
                 fast_response = None
@@ -109,8 +142,9 @@ class ChatService:
                     fast_response = "Sure, which concept would you like me to explain?"
                 elif message_text_clean == "Summarize a chapter":
                     fast_response = "Sure, which chapter would you like me to summarize?"
-                elif message_text_clean == "Help me study":
-                    fast_response = "Sure, should I summarize or create questions based on the topic you want to study?"
+                # NOTE: "Quiz me" is NOT fast-pathed — it goes through the RAG
+                # pipeline so the LLM can read the reference material and suggest
+                # 5 quiz topics from the actual course content.
 
                 if fast_response:
                     # Yield token instantly
@@ -126,6 +160,37 @@ class ChatService:
                     db.add(assistant_msg)
                     await db.commit()
                     
+                    yield "event: done\ndata: {}\n\n"
+                    return
+                # ----------------------------------------
+
+                # Send conversation ID to client immediately
+                yield f"event: meta\ndata: {json.dumps({'conversation_id': str(conversation_id)})}\n\n"
+
+                # --- FAST PATH FOR SUGGESTION COMMANDS ---
+                message_text_clean = message_text.strip()
+                fast_response = None
+                if message_text_clean == "Explain a concept":
+                    fast_response = "Sure, which concept would you like me to explain?"
+                elif message_text_clean == "Summarize a chapter":
+                    fast_response = "Sure, which chapter would you like me to summarize?"
+                # NOTE: "Quiz me" is NOT fast-pathed — the structured quiz
+                # state machine above handles it (see _handle_quiz_flow).
+
+                if fast_response:
+                    # Yield token instantly
+                    yield f"event: token\ndata: {json.dumps({'text': fast_response})}\n\n"
+
+                    # Save assistant message
+                    assistant_msg = Message(
+                        conversation_id=conversation_id,
+                        role=MessageRole.ASSISTANT,
+                        content=fast_response,
+                        sources=[],
+                    )
+                    db.add(assistant_msg)
+                    await db.commit()
+
                     yield "event: done\ndata: {}\n\n"
                     return
                 # ----------------------------------------
@@ -256,11 +321,32 @@ class ChatService:
                 ]
 
                 # 5. Build prompt
-                prompt = build_rag_prompt(
-                    context_chunks=chunks,
-                    conversation_history=history,
-                    question=message_text
-                )
+                try:
+                    prompt = build_rag_prompt(
+                        context_chunks=chunks,
+                        conversation_history=history,
+                        question=message_text
+                    )
+                except UngroundedTopicError as e:
+                    # Quiz topic isn't covered by the retrieved course
+                    # material (chunks came back empty after relevance
+                    # filtering above). Respond directly — skip the LLM
+                    # call entirely rather than risk it fabricating a quiz
+                    # from outside knowledge.
+                    fallback_text = e.fallback_message
+                    yield f"event: token\ndata: {json.dumps({'text': fallback_text})}\n\n"
+
+                    assistant_msg = Message(
+                        conversation_id=conversation_id,
+                        role=MessageRole.ASSISTANT,
+                        content=fallback_text,
+                        sources=sources,
+                    )
+                    db.add(assistant_msg)
+                    await db.commit()
+
+                    yield "event: done\ndata: {}\n\n"
+                    return
                 
                 # Log the assembled prompt
                 print("═" * 80, flush=True)
@@ -326,3 +412,464 @@ class ChatService:
             error_msg = f"\n\nFatal error in stream processing: {str(e)}"
             yield f"event: token\ndata: {json.dumps({'text': error_msg})}\n\n"
             yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+    # ─────────────────────────────────────────────────────────────────────
+    # STRUCTURED QUIZ STATE MACHINE
+    # ─────────────────────────────────────────────────────────────────────
+    async def _handle_quiz_flow(
+        self,
+        *,
+        db: AsyncSession,
+        conversation: Conversation,
+        user_message: str,
+        existing_quiz_state: Optional[dict],
+        is_quiz_me: bool,
+        course_id: UUID,
+        user_id: Optional[UUID],
+    ) -> AsyncGenerator[str, None]:
+        """
+        Drive the entire quiz lifecycle. Three phases, all reading/writing
+        conversation.quiz_state:
+
+          Phase 1 — "quiz me"
+              LLM proposes 3–5 topics from the reference material. We store
+              them on quiz_state and emit a `quiz_topics` SSE event so the
+              UI can render a topic picker.
+
+          Phase 2 — user picks a topic (or "All Topics" / free text)
+              We re-retrieve chunks scoped to that topic, call the LLM to
+              generate the full 10-question quiz as strict JSON, and store
+              it on quiz_state. Then emit `quiz_question` for Q1.
+
+          Phase 3 — user submits A/B/C/D
+              Pure Python. grade_answer() in QuizService mutates quiz_state
+              (score, current_index, history) and returns the next question
+              (or the final score). We emit `quiz_result` + (if more
+              questions remain) `quiz_question`. No LLM call.
+
+        If the quiz is already complete when the user sends a new message,
+        we clear quiz_state and exit — the next iteration of process_chat
+        (none, since we `return`) won't be reached; the user has to send
+        a new message and we'll start fresh.
+        """
+        try:
+            # Detect language from the user's current message (fallback to English).
+            malayalam_chars = len(re.findall(r'[\u0D00-\u0D7F]', user_message))
+            target_language = "MALAYALAM" if malayalam_chars >= 2 else "ENGLISH"
+
+            # ── If a previous quiz is complete, clear state and let RAG handle
+            #    this new message normally. We do this by NOT entering the quiz
+            #    flow — but we got here because existing_quiz_state is truthy.
+            if existing_quiz_state and existing_quiz_state.get("completed"):
+                conversation.quiz_state = None
+                await db.commit()
+                # Send an encouraging completion message and exit. Don't fall
+                # through to RAG (the user already sent "quiz me" or similar;
+                # if they want a new quiz they can re-send).
+                if is_quiz_me:
+                    # New "quiz me" — restart the flow.
+                    existing_quiz_state = None
+                else:
+                    finish_text = (
+                        "Your previous quiz is complete! Send 'Quiz me' to start a new one."
+                    )
+                    yield f"event: token\ndata: {json.dumps({'text': finish_text})}\n\n"
+                    assistant_msg = Message(
+                        conversation_id=conversation.id,
+                        role=MessageRole.ASSISTANT,
+                        content=finish_text,
+                        sources=[],
+                    )
+                    db.add(assistant_msg)
+                    await db.commit()
+                    yield "event: done\ndata: {}\n\n"
+                    return
+
+            # ─────────────────────────────────────────────
+            # PHASE 3: user submitted A/B/C/D → grade in pure Python
+            # ─────────────────────────────────────────────
+            # Triggered when we already have a chosen topic and at least one
+            # question stored. We do NOT call the LLM here at all.
+            if (
+                existing_quiz_state
+                and existing_quiz_state.get("topic")
+                and existing_quiz_state.get("questions")
+                and not existing_quiz_state.get("completed")
+            ):
+                target_language = existing_quiz_state.get("language", target_language)
+                # The user's text is an answer choice. Normalise.
+                selected = user_message.strip().upper()
+
+                updated_state, result = quiz_service.grade_answer(
+                    existing_quiz_state, selected
+                )
+                # Persist updated state immediately so a refresh mid-flight
+                # doesn't roll the student back.
+                conversation.quiz_state = updated_state
+                await db.commit()
+
+                # Emit the grading result event.
+                result_payload = {
+                    "is_correct": result["is_correct"],
+                    "correct_key": result["correct_key"],
+                    "explanation": result["explanation"],
+                    "score": result["score"],
+                    "total": result["total"],
+                    "finished": result["finished"],
+                }
+                yield f"event: quiz_result\ndata: {json.dumps(result_payload)}\n\n"
+
+                # Build the assistant's textual response.
+                if result["is_correct"]:
+                    feedback = "✅ **Correct!**"
+                else:
+                    feedback = f"❌ **Not quite.** The correct answer is **{result['correct_key']}**."
+                if result["explanation"]:
+                    feedback += f" {result['explanation']}"
+
+                if result["finished"]:
+                    summary = (
+                        f"\n\n🎯 **Quiz Complete!**\n\n"
+                        f"**Your Score: {result['score']}/{result['total']}**"
+                    )
+                    feedback = feedback + summary
+                    yield f"event: token\ndata: {json.dumps({'text': feedback})}\n\n"
+                    assistant_msg = Message(
+                        conversation_id=conversation.id,
+                        role=MessageRole.ASSISTANT,
+                        content=feedback,
+                        sources=[],
+                    )
+                    db.add(assistant_msg)
+                    await db.commit()
+                    yield "event: done\ndata: {}\n\n"
+                    return
+
+                # Not finished — emit the result feedback in the chat bubble
+                # AND the next question as a structured QuizCard. The next
+                # question is NOT rendered as markdown text (the QuizCard
+                # below the bubble is the source of truth for the question
+                # content — re-rendering the same stem twice was both
+                # visually noisy and made repeated/wrong explanations look
+                # like repeated questions).
+                next_q = result["next_question"]
+                next_idx = updated_state["current_index"]
+                total = len(updated_state["questions"])
+
+                # The chat bubble shows just the result feedback. The
+                # frontend will append the QuizCard for the next question
+                # alongside this message.
+                yield f"event: token\ndata: {json.dumps({'text': feedback})}\n\n"
+                yield f"event: quiz_question\ndata: {json.dumps(self._serialize_question(next_q, index=next_idx, total=total))}\n\n"
+                assistant_msg = Message(
+                    conversation_id=conversation.id,
+                    role=MessageRole.ASSISTANT,
+                    content=feedback,
+                    sources=[],
+                )
+                db.add(assistant_msg)
+                await db.commit()
+                yield "event: done\ndata: {}\n\n"
+                return
+
+            # ─────────────────────────────────────────────
+            # PHASE 1: "quiz me" → generate topic suggestions
+            # ─────────────────────────────────────────────
+            # Triggered only on a fresh "quiz me" request when there is no
+            # existing quiz_state. If state already exists with topic=null,
+            # we treat the user's input as a topic pick (handled by
+            # Phase 2 below) instead of regenerating the topic list.
+            if is_quiz_me and not existing_quiz_state:
+                yield f"event: status\ndata: {json.dumps({'message': 'Preparing quiz...'})}\n\n"
+
+                # Pull reference chunks (one retrieval covers both topic
+                # extraction and question generation).
+                chunks = await self._retrieve_quiz_chunks(
+                    course_id=course_id,
+                    user_id=user_id,
+                    queries=[
+                        "course chapters main topics concepts events people",
+                        "historical developments social political economic cultural topics",
+                    ],
+                )
+
+                if not chunks:
+                    # No reference material — fall back gracefully.
+                    fallback = (
+                        "കോഴ്‌സ് വിവരങ്ങളുടെ അടിസ്ഥാനത്തിൽ ക്വിസ് തയ്യാറാക്കാൻ ആവശ്യമായ വിവരങ്ങൾ ലഭ്യമല്ല."
+                        if target_language == "MALAYALAM"
+                        else "I do not have enough information to create a quiz based on the course materials."
+                    )
+                    yield f"event: token\ndata: {json.dumps({'text': fallback})}\n\n"
+                    assistant_msg = Message(
+                        conversation_id=conversation.id,
+                        role=MessageRole.ASSISTANT,
+                        content=fallback,
+                        sources=[],
+                    )
+                    db.add(assistant_msg)
+                    await db.commit()
+                    yield "event: done\ndata: {}\n\n"
+                    return
+
+                topics = await quiz_service.generate_topics(chunks, target_language)
+                if not topics:
+                    fallback = (
+                        "I couldn't identify any quiz topics in the course materials right now. Please try again."
+                    )
+                    yield f"event: token\ndata: {json.dumps({'text': fallback})}\n\n"
+                    assistant_msg = Message(
+                        conversation_id=conversation.id,
+                        role=MessageRole.ASSISTANT,
+                        content=fallback,
+                        sources=[],
+                    )
+                    db.add(assistant_msg)
+                    await db.commit()
+                    yield "event: done\ndata: {}\n\n"
+                    return
+
+                # Persist topics; questions will be generated on the next turn
+                # once the student picks a topic (so the LLM is asked to
+                # generate quiz content for the actual topic chosen, not for
+                # every topic in advance).
+                conversation.quiz_state = {
+                    "language": target_language,
+                    "topic": None,  # not yet chosen
+                    "topics": topics,
+                    "questions": [],
+                    "current_index": 0,
+                    "score": 0,
+                    "completed": False,
+                    "history": [],
+                }
+                await db.commit()
+
+                # Emit the structured topic picker event.
+                yield f"event: quiz_topics\ndata: {json.dumps({'language': target_language, 'topics': topics})}\n\n"
+
+                # Also emit a friendly token so the chat bubble shows text.
+                intro_text = (
+                    "Sure, which topic should I ask from?"
+                    if target_language == "ENGLISH"
+                    else "ഏത് വിഷയത്തെക്കുറിച്ച് ചോദിക്കണം?"
+                )
+                yield f"event: token\ndata: {json.dumps({'text': intro_text})}\n\n"
+
+                assistant_msg = Message(
+                    conversation_id=conversation.id,
+                    role=MessageRole.ASSISTANT,
+                    content=intro_text,
+                    sources=[],
+                )
+                db.add(assistant_msg)
+                await db.commit()
+                yield "event: done\ndata: {}\n\n"
+                return
+
+            # ─────────────────────────────────────────────
+            # PHASE 2: user picked a topic → generate questions
+            # ─────────────────────────────────────────────
+            chosen_topic_raw = user_message.strip()
+            # Normalise: case-insensitive match against the suggested topics
+            topics = existing_quiz_state.get("topics", [])
+            chosen_topic = None
+            all_topics_match = chosen_topic_raw.lower() in {
+                "all topics", "all topics (mixed)", "all", "everything"
+            }
+            if all_topics_match:
+                chosen_topic = "All Topics (Mixed)"
+            else:
+                for t in topics:
+                    if t.strip().lower() == chosen_topic_raw.lower():
+                        chosen_topic = t
+                        break
+                if chosen_topic is None:
+                    # User free-typed a topic. Treat it as the chosen one.
+                    chosen_topic = chosen_topic_raw
+
+            target_language = existing_quiz_state.get("language", target_language)
+            yield f"event: status\ndata: {json.dumps({'message': 'Generating quiz questions...'})}\n\n"
+
+            # Re-retrieve chunks using the chosen topic as the query so the
+            # generated questions are actually grounded in topic-relevant
+            # material.
+            retrieval_queries = [chosen_topic]
+            if chosen_topic == "All Topics (Mixed)":
+                # Searching for the literal label "All Topics (Mixed)" mostly
+                # returns the textbook preface. Search each suggested topic
+                # plus broad chapter-level terms and merge the results.
+                retrieval_queries = [
+                    *topics,
+                    "main chapters events people concepts dates causes effects",
+                    "historical developments social political economic cultural topics",
+                ]
+
+            chunks = await self._retrieve_quiz_chunks(
+                course_id=course_id,
+                user_id=user_id,
+                queries=retrieval_queries,
+            )
+
+            if not chunks:
+                fallback = (
+                    "I do not have enough information to create a quiz on this topic based on the course materials."
+                    if target_language == "ENGLISH"
+                    else "കോഴ്‌സ് വിവരങ്ങളുടെ അടിസ്ഥാനത്തിൽ ഈ വിഷയത്തിൽ ക്വിസ് തയ്യാറാക്കാൻ ആവശ്യമായ വിവരങ്ങൾ ലഭ്യമല്ല."
+                )
+                yield f"event: token\ndata: {json.dumps({'text': fallback})}\n\n"
+                assistant_msg = Message(
+                    conversation_id=conversation.id,
+                    role=MessageRole.ASSISTANT,
+                    content=fallback,
+                    sources=[],
+                )
+                db.add(assistant_msg)
+                # Keep topics so the student can pick again.
+                conversation.quiz_state = {
+                    **existing_quiz_state,
+                    "topic": None,
+                }
+                await db.commit()
+                yield f"event: quiz_topics\ndata: {json.dumps({'language': target_language, 'topics': topics})}\n\n"
+                yield "event: done\ndata: {}\n\n"
+                return
+
+            questions = await quiz_service.generate_questions(
+                chunks, chosen_topic, target_language
+            )
+            if not questions:
+                fallback = (
+                    "I couldn't generate quiz questions for that topic. Please pick another topic."
+                    if target_language == "ENGLISH"
+                    else "ആ വിഷയത്തിൽ ക്വിസ് ചോദ്യങ്ങൾ സൃഷ്ടിക്കാൻ കഴിഞ്ഞില്ല. ദയവായി മറ്റൊരു വിഷയം തിരഞ്ഞെടുക്കുക."
+                )
+                yield f"event: token\ndata: {json.dumps({'text': fallback})}\n\n"
+                assistant_msg = Message(
+                    conversation_id=conversation.id,
+                    role=MessageRole.ASSISTANT,
+                    content=fallback,
+                    sources=[],
+                )
+                db.add(assistant_msg)
+                conversation.quiz_state = {**existing_quiz_state, "topic": None}
+                await db.commit()
+                yield f"event: quiz_topics\ndata: {json.dumps({'language': target_language, 'topics': topics})}\n\n"
+                yield "event: done\ndata: {}\n\n"
+                return
+
+            # Persist the full quiz state. The LLM call is over; the rest
+            # is pure Python.
+            conversation.quiz_state = {
+                "language": target_language,
+                "topic": chosen_topic,
+                "topics": topics,
+                "questions": questions,
+                "current_index": 0,
+                "score": 0,
+                "completed": False,
+                "history": [],
+            }
+            await db.commit()
+
+            # Emit the first question.
+            first_q = questions[0]
+            yield f"event: quiz_question\ndata: {json.dumps(self._serialize_question(first_q, index=0, total=len(questions)))}\n\n"
+
+            # The chat bubble only carries a short intro line — the
+            # structured QuizCard below the bubble shows the actual
+            # question. Rendering the question stem in both the markdown
+            # text and the card caused the duplication the user reported.
+            intro_line = (
+                f"Quiz on **{chosen_topic}** — {len(questions)} questions. Here we go!"
+                if target_language == "ENGLISH"
+                else f"**{chosen_topic}** വിഷയത്തിൽ ക്വിസ് — {len(questions)} ചോദ്യങ്ങൾ. തുടങ്ങാം!"
+            )
+            yield f"event: token\ndata: {json.dumps({'text': intro_line})}\n\n"
+            assistant_msg = Message(
+                conversation_id=conversation.id,
+                role=MessageRole.ASSISTANT,
+                content=intro_line,
+                sources=[],
+            )
+            db.add(assistant_msg)
+            await db.commit()
+            yield "event: done\ndata: {}\n\n"
+            return
+
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
+            print(f"QUIZ FLOW ERROR: {tb}")
+            err = f"Quiz error: {str(e)}"
+            yield f"event: token\ndata: {json.dumps({'text': err})}\n\n"
+            yield f"event: error\ndata: {json.dumps({'error': err})}\n\n"
+
+    async def _retrieve_quiz_chunks(
+        self,
+        *,
+        course_id: UUID,
+        user_id: Optional[UUID],
+        queries: list[str],
+    ) -> list:
+        """Retrieve a broad, deduplicated quiz context across all queries."""
+        unique_chunks = {}
+        for query in queries:
+            try:
+                raw = await self.retrieval.retrieve_relevant_chunks(
+                    user_id=str(user_id) if user_id else None,
+                    course_id=str(course_id),
+                    query=query,
+                    top_k=45,
+                )
+            except Exception as e:
+                print(f"QUIZ retrieval error for '{query}': {e}")
+                continue
+
+            for chunk in raw:
+                if chunk.get("score", 0.0) < RELEVANCE_THRESHOLD:
+                    continue
+                key = (
+                    chunk.get("document_id"),
+                    chunk.get("page_number"),
+                    chunk.get("chunk_index"),
+                    chunk.get("text", "")[:120],
+                )
+                existing = unique_chunks.get(key)
+                if existing is None or chunk.get("score", 0.0) > existing.get("score", 0.0):
+                    unique_chunks[key] = chunk
+
+        # Keep the best 30 distinct chunks. This is substantially broader than
+        # the normal chat context while avoiding unbounded prompt growth.
+        return sorted(
+            unique_chunks.values(),
+            key=lambda chunk: chunk.get("score", 0.0),
+            reverse=True,
+        )[:30]
+
+    def _serialize_question(
+        self, question: dict, *, index: int, total: int
+    ) -> dict:
+        """Shape a question dict for the frontend `quiz_question` SSE event."""
+        return {
+            "index": index,
+            "total": total,
+            "id": question.get("id"),
+            "topic": question.get("topic"),
+            "stem": question.get("stem"),
+            "options": question.get("options", []),
+        }
+
+    def _render_question_text(
+        self,
+        question: dict,
+        *,
+        index: int,
+        total: int,
+        language: str,
+    ) -> str:
+        """Render a question as plain text for the assistant chat bubble."""
+        lines = [f"**Question {index + 1} of {total}:**", "", question.get("stem", "")]
+        for opt in question.get("options", []):
+            lines.append(f"- **{opt.get('key')}**. {opt.get('text')}")
+        return "\n".join(lines)

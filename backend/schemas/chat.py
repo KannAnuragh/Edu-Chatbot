@@ -39,6 +39,7 @@ class ConversationResponse(BaseModel):
     id: UUID
     title: str
     course_id: UUID
+    quiz_state: Optional[Dict[str, Any]] = None
     created_at: datetime
     updated_at: datetime
     messages: List[MessageResponse] = []

@@ -1,15 +1,22 @@
+import type { SSEEvent } from "@/types";
+
 const getApiUrl = () => {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
-  }
   if (typeof window !== "undefined") {
     const hostname = window.location.hostname;
     if (hostname === "localhost" || hostname === "127.0.0.1") {
-      return "http://localhost:8001/api/v1";
+      return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
     }
-    return "/api/v1";
+
+    // A public env value such as http://localhost:8001 works only when the
+    // browser itself is running on the host machine. For LAN access, point
+    // the browser at the API on the same host as the frontend instead.
+    const configuredUrl = process.env.NEXT_PUBLIC_API_URL || "";
+    if (configuredUrl && !configuredUrl.includes("localhost") && !configuredUrl.includes("127.0.0.1")) {
+      return configuredUrl;
+    }
+    return `${window.location.protocol}//${hostname}:8001/api/v1`;
   }
-  return "http://localhost:8001/api/v1";
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001/api/v1";
 };
 
 export class ApiClient {
@@ -23,11 +30,12 @@ export class ApiClient {
 
   private async request(endpoint: string, options: RequestInit = {}) {
     const url = `${getApiUrl()}${endpoint}`;
-    const headers = { ...this.getHeaders(), ...options.headers };
+    const headers = new Headers(this.getHeaders());
+    new Headers(options.headers).forEach((value, key) => headers.set(key, value));
     
     // Debug log to ensure token is attached
     if (typeof window !== "undefined" && url.includes("/courses")) {
-        console.log(`[API] Requesting ${url}. Token present: ${!!headers["Authorization"]}`);
+        console.log(`[API] Requesting ${url}. Token present: ${headers.has("Authorization")}`);
     }
 
     const response = await fetch(url, { ...options, headers });

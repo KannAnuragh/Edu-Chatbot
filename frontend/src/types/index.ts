@@ -43,18 +43,73 @@ export interface Message {
   content: string;
   sources?: SourceReference[];
   created_at: string;
+  // Optional structured quiz payload. When present, the message bubble
+  // renders a QuizCard alongside its text content. This is the in-memory
+  // representation of the structured quiz state that the backend persists
+  // on Conversation.quiz_state.
+  quiz?: {
+    variant: "topics" | "question" | "result" | "complete";
+    data: QuizTopicsPayload | QuizQuestion | QuizResult;
+  };
 }
 
 export interface Conversation {
   id: string;
   title: string;
   course_id: string;
+  quiz_state?: {
+    language: "ENGLISH" | "MALAYALAM";
+    topic: string | null;
+    topics: string[];
+    questions: QuizQuestion[];
+    current_index: number;
+    score: number;
+    completed: boolean;
+    history: Array<{ index: number; question_id: string; selected: string; correct: boolean }>;
+  } | null;
   created_at: string;
   updated_at: string;
   messages: Message[];
 }
 
 export interface SSEEvent {
-  type: "meta" | "token" | "sources" | "done" | "error";
+  type:
+    | "meta"
+    | "token"
+    | "sources"
+    | "done"
+    | "error"
+    | "status"
+    | "quiz_topics"
+    | "quiz_question"
+    | "quiz_result";
   data: any;
+}
+
+export interface QuizOption {
+  key: "A" | "B" | "C" | "D";
+  text: string;
+}
+
+export interface QuizQuestion {
+  id: string;
+  topic: string;
+  stem: string;
+  options: QuizOption[];
+  index: number;
+  total: number;
+}
+
+export interface QuizResult {
+  is_correct: boolean;
+  correct_key: "A" | "B" | "C" | "D";
+  explanation: string;
+  score: number;
+  total: number;
+  finished: boolean;
+}
+
+export interface QuizTopicsPayload {
+  language: "ENGLISH" | "MALAYALAM";
+  topics: string[];
 }

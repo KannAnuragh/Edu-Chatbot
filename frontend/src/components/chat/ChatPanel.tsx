@@ -1,11 +1,18 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Send, Paperclip, Trash2, HelpCircle, BookOpen, GraduationCap } from "lucide-react";
 import { api } from "@/lib/api";
-import { type Message, type SourceReference, type SSEEvent, type Conversation } from "@/types";
+import {
+  type Message,
+  type SourceReference,
+  type SSEEvent,
+  type QuizQuestion,
+  type QuizTopicsPayload,
+} from "@/types";
 import MessageBubble from "./MessageBubble";
+import QuizCard from "./QuizCard";
 import EtherealAvatar from "./EtherealAvatar";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -34,8 +41,8 @@ const SUGGESTIONS = [
   {
     icon: <GraduationCap size={20} className="text-amber-600" />,
     iconBg: "bg-amber-50 border border-amber-100/80 group-hover:bg-amber-100/80",
-    title: "Help me study",
-    subtitle: "Quiz me or review important topics",
+    title: "Quiz me",
+    subtitle: "Test your knowledge on course topics",
   },
 ];
 
@@ -64,7 +71,6 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
   const animationFrameIdRef = useRef<number | null>(null);
 
   const searchParams = useSearchParams();
-  const router = useRouter();
   const convIdParam = searchParams.get('conv');
   const { user } = useAuth();
 
@@ -188,7 +194,43 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
   const loadConversation = async (id: string) => {
     try {
       const conv = await api.getConversation(projectId, id);
-      setMessages(conv.messages || []);
+      const loadedMessages = [...(conv.messages || [])] as Message[];
+      const quizState = conv.quiz_state;
+      const lastAssistantIndex = loadedMessages.map((message) => message.role).lastIndexOf("assistant");
+
+      // Quiz cards are UI state, while the authoritative quiz state lives on
+      // the conversation. Reattach the current card after a page refresh.
+      if (quizState && lastAssistantIndex >= 0) {
+        if (!quizState.topic) {
+          loadedMessages[lastAssistantIndex] = {
+            ...loadedMessages[lastAssistantIndex],
+            quiz: {
+              variant: "topics",
+              data: { language: quizState.language, topics: quizState.topics },
+            },
+          };
+        } else if (!quizState.completed) {
+          const currentQuestion = quizState.questions[quizState.current_index];
+          if (currentQuestion) {
+            loadedMessages[lastAssistantIndex] = {
+              ...loadedMessages[lastAssistantIndex],
+              quiz: {
+                variant: "question",
+                data: {
+                  id: currentQuestion.id,
+                  topic: currentQuestion.topic,
+                  stem: currentQuestion.stem,
+                  options: currentQuestion.options,
+                  index: quizState.current_index,
+                  total: quizState.questions.length,
+                },
+              },
+            };
+          }
+        }
+      }
+
+      setMessages(loadedMessages);
       scrollToBottom();
     } catch (error) {
       console.error("Failed to load conversation", error);
@@ -338,6 +380,34 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
             if (event.data.text) {
               streamTargetRef.current += event.data.text;
             }
+          } else if (event.type === "status") {
+            // Hide status messages from the typewriter (we don't want to
+            // show "Generating quiz questions..." in the bubble).
+          } else if (event.type === "quiz_topics") {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMsgId
+                  ? { ...msg, quiz: { variant: "topics", data: event.data as QuizTopicsPayload } }
+                  : msg
+              )
+            );
+          } else if (event.type === "quiz_question") {
+            // Attach the question card to the current assistant message.
+            const q = event.data as QuizQuestion;
+            setMessages((prev) => {
+              const idx = prev.findIndex((m) => m.id === assistantMsgId);
+              if (idx === -1) return prev;
+              const updated = [...prev];
+              const current = updated[idx];
+              const prevQuiz = current.quiz;
+              // If this message already has a question (from a previous
+              // turn in the same quiz), replace it. Otherwise attach.
+              updated[idx] = { ...current, quiz: { variant: "question", data: q } };
+              return updated;
+            });
+          } else if (event.type === "quiz_result") {
+            // Result feedback is already included in the assistant text.
+            // Keep only question cards in the structured UI.
           } else if (event.type === "error") {
             streamTargetRef.current += `\n\n[Error: ${event.data.error || 'Unknown error'}]`;
           }
@@ -386,6 +456,16 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
 
   const handleSuggestionClick = (title: string) => {
     handleSend(title);
+  };
+
+  const handleQuizTopicPick = (topic: string) => {
+    if (isTyping) return;
+    handleSend(topic);
+  };
+
+  const handleQuizAnswer = (key: "A" | "B" | "C" | "D") => {
+    if (isTyping) return;
+    handleSend(key);
   };
 
   return (
@@ -551,6 +631,23 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
                     isLatest={index === messages.length - 1}
                     onSendFollowUp={(text) => handleSend(text)}
                   />
+                  {/* Structured quiz card. Rendered alongside the bubble so
+                      the markdown text and the interactive UI sit together. */}
+                  {msg.role === "assistant" && msg.quiz && (
+                    <div className="ml-11 -mt-1">
+                      <QuizCard
+                        variant={msg.quiz.variant}
+                        data={msg.quiz.data as any}
+                        onTopicPick={handleQuizTopicPick}
+                        onAnswer={handleQuizAnswer}
+                        // Lock the question as soon as a result has been
+                        // recorded on it. The next question arrives as a
+                        // fresh message.
+                        locked={msg.quiz.variant === "result"}
+                        disabled={isTyping}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
 

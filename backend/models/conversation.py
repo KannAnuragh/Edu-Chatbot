@@ -30,6 +30,35 @@ class Conversation(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )
+    # Structured quiz state. None when not in a quiz.
+    # Shape:
+    # {
+    #   "language": "ENGLISH" | "MALAYALAM",
+    #   "topic": "<chosen topic or null for 'All Topics'>",
+    #   "topics": [list of suggested topic strings from the LLM],
+    #   "questions": [
+    #       {
+    #           "id": "q1",  # stable within this quiz
+    #           "topic": "...",
+    #           "stem": "...",
+    #           "options": [
+    #               {"key": "A", "text": "..."},
+    #               {"key": "B", "text": "..."},
+    #               ...
+    #           ],
+    #           "correct_key": "B",  # graded deterministically in Python
+    #           "explanation": "..."
+    #       }
+    #   ],
+    #   "current_index": 0,         # index into questions
+    #   "score": 0,                 # number of correct answers
+    #   "completed": False,
+    #   "history": [                # log of every answer attempt
+    #       {"index": 0, "selected": "B", "correct": True, "question_id": "q1"},
+    #       ...
+    #   ]
+    # }
+    quiz_state: Mapped[dict] = mapped_column(JSON, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )
