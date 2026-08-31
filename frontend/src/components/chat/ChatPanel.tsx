@@ -50,6 +50,32 @@ const SUGGESTIONS = [
   },
 ];
 
+const SPECIAL_COMMAND_OPTIONS = {
+  explain: {
+    label: "Explain",
+    prefix: "Explain: ",
+    commandClass: "text-black/40 font-semibold",
+    textClass: "text-slate-900 font-medium",
+    icon: HelpCircle,
+  },
+  cheat_sheet: {
+    label: "Cheat Sheet",
+    prefix: "Cheat Sheet: ",
+    commandClass: "text-black/40 font-semibold",
+    textClass: "text-slate-900 font-medium",
+    icon: BookOpen,
+  },
+  quiz: {
+    label: "Quiz",
+    prefix: "Quiz: ",
+    commandClass: "text-black/40 font-semibold",
+    textClass: "text-slate-900 font-medium",
+    icon: GraduationCap,
+  },
+} as const;
+
+type SpecialCommandKey = keyof typeof SPECIAL_COMMAND_OPTIONS;
+
 const parseCheatSheetMarkdown = (markdown: string): CheatSheet => {
   const normalized = markdown.trim();
   const sections: { title: string; items: string[] }[] = [];
@@ -138,6 +164,8 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [isCheatSheetSelectionMode, setIsCheatSheetSelectionMode] = useState(false);
+  const [activeCommand, setActiveCommand] = useState<SpecialCommandKey | null>(null);
+  const [showCommandMenu, setShowCommandMenu] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -377,8 +405,45 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
     }
   }, [messages, isTyping, scrollToBottom]);
 
+  const commandConfig = activeCommand ? SPECIAL_COMMAND_OPTIONS[activeCommand] : null;
+
+  const clearActiveCommand = useCallback(() => {
+    setActiveCommand(null);
+    setShowCommandMenu(false);
+    setInputValue("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.focus();
+    }
+  }, []);
+
+  const activateSpecialCommand = useCallback((key: SpecialCommandKey) => {
+    const option = SPECIAL_COMMAND_OPTIONS[key];
+    setShowCommandMenu(false);
+    setActiveCommand(key);
+    setIsInputFocused(true);
+    setInputValue(option.prefix);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      if (textareaRef.current) {
+        textareaRef.current.selectionStart = textareaRef.current.selectionEnd = option.prefix.length;
+      }
+    });
+  }, []);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputValue(e.target.value);
+    const nextTypedValue = e.target.value;
+    if (activeCommand) {
+      const prefix = SPECIAL_COMMAND_OPTIONS[activeCommand].prefix;
+      setInputValue(prefix + nextTypedValue);
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+      }
+      return;
+    }
+
+    setInputValue(nextTypedValue);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
@@ -386,6 +451,14 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (activeCommand) {
+      if (e.key === "Backspace" && (textareaRef.current?.selectionStart ?? 0) === 0) {
+        e.preventDefault();
+        clearActiveCommand();
+        return;
+      }
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -393,20 +466,41 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
   };
 
   const handleSend = async (overrideMessage?: string) => {
-    const rawMessage = overrideMessage || inputValue.trim();
+    let rawMessage = overrideMessage || inputValue.trim();
+
+    if (activeCommand) {
+      const prefix = SPECIAL_COMMAND_OPTIONS[activeCommand].prefix;
+      const typedTopic = rawMessage.startsWith(prefix) ? rawMessage.slice(prefix.length).trim() : rawMessage.trim();
+      const normalizedTopic = typedTopic.replace(/^\s*[:\-]\s*/, "").trim();
+
+      if (!normalizedTopic) {
+        clearActiveCommand();
+        return;
+      }
+
+      if (activeCommand === "explain") {
+        rawMessage = `Explain Concept|ELI5|${normalizedTopic}`;
+      } else if (activeCommand === "cheat_sheet") {
+        rawMessage = `Cheat Sheet: ${normalizedTopic}`;
+      } else if (activeCommand === "quiz") {
+        rawMessage = `Quiz: ${normalizedTopic}`;
+      }
+
+      setActiveCommand(null);
+      setShowCommandMenu(false);
+    }
+
     const rawMessageLower = rawMessage.toLowerCase();
     const isCheatSheetCommand = rawMessageLower === "generate cheat sheet";
     const isExplicitCheatSheetTopic = rawMessageLower.startsWith("cheat sheet:");
     const isExplainCommand = rawMessageLower.startsWith("explain concept|");
-    const isQuizCommand = rawMessageLower.startsWith("quiz me") || rawMessageLower.startsWith("quiz ");
+    const isQuizCommand = /^quiz(?:\s+me|\s*:|\s+|$)/.test(rawMessageLower.trim());
     const isSpecialCommand =
       isCheatSheetCommand ||
       isExplicitCheatSheetTopic ||
       isExplainCommand ||
       isQuizCommand;
 
-    // Any normal question typed while a guided flow is active should fall back to
-    // regular chat behavior instead of being forced into a special feature mode.
     const isNormalChatPrompt = !!rawMessage && !isSpecialCommand;
 
     if (isCheatSheetSelectionMode && isNormalChatPrompt) {
@@ -428,7 +522,9 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
         : messageToSend
       : messageToSend.toLowerCase().startsWith("cheat sheet:")
         ? messageToSend.split(":").slice(1).join(":").trim() || messageToSend
-        : messageToSend;
+        : messageToSend.toLowerCase().startsWith("quiz:")
+          ? messageToSend.split(":", 2)[1]?.trim() || messageToSend
+          : messageToSend;
 
     setInputValue("");
     if (textareaRef.current) {
@@ -596,6 +692,11 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
   };
 
   const handleSuggestionClick = (title: string) => {
+    if (title === "Explain a concept") {
+      activateSpecialCommand("explain");
+      return;
+    }
+
     if (title === "Generate Cheat Sheet") {
       setIsCheatSheetSelectionMode(true);
       const existing = readStoredCheatSheet(projectId, user?.id || null);
@@ -611,6 +712,13 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
         setMessages((prev) => [...prev, { id: Date.now().toString(), role: "user", content: "Generate Cheat Sheet", created_at: now }, assistantMessage]);
         return;
       }
+      activateSpecialCommand("cheat_sheet");
+      return;
+    }
+
+    if (title === "Quiz me") {
+      activateSpecialCommand("quiz");
+      return;
     }
 
     handleSend(title);
@@ -627,7 +735,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
 
   const handleQuizTopicPick = (topic: string) => {
     if (isTyping) return;
-    const payload = isCheatSheetSelectionMode ? `Cheat Sheet: ${topic}` : topic;
+    const payload = isCheatSheetSelectionMode ? `Cheat Sheet: ${topic}` : `Quiz: ${topic}`;
     setIsCheatSheetSelectionMode(false);
     handleSend(payload);
   };
@@ -911,42 +1019,80 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
         (messages.length === 0 && isInitializing) ? "opacity-0 translate-y-8" : "opacity-100 translate-y-0"
       )} style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         <div className="max-w-lg mx-auto pointer-events-auto">
-          {/* Single unified floating input box */}
           <div
-            className="group relative isolate overflow-hidden flex items-center gap-2 rounded-2xl backdrop-blur-lg px-4 py-2 transition-shadow shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.9),inset_0_-1px_1px_rgba(0,0,0,0.04),0_10px_30px_rgba(28,77,140,0.16)]"
+            className="group relative isolate overflow-visible flex items-center gap-2 rounded-2xl backdrop-blur-lg px-3 py-2 transition-shadow shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.9),inset_0_-1px_1px_rgba(0,0,0,0.04),0_10px_30px_rgba(28,77,140,0.16)]"
             style={{
               background:
                 'linear-gradient(160deg, rgba(255,255,255,0.82) 0%, rgba(232,240,251,0.7) 100%)',
             }}
           >
-            {/* Adaptive glass border - blends with whatever is behind the input */}
             <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/40" />
-            {/* Quiet static ring */}
             <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/25" />
-            {/* Glass sheen across the top, same treatment as the message bubbles */}
             <div className="pointer-events-none absolute inset-x-0 top-0 h-1/2 rounded-t-2xl bg-gradient-to-b from-white/40 to-transparent" />
 
-            <textarea
-              ref={textareaRef}
-              value={inputValue}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              onFocus={() => {
-                setIsInputFocused(true);
-                // Prevent aggressive browser viewport shifting (especially iOS Safari)
-                setTimeout(() => {
-                  window.scrollTo(0, 0);
-                  document.body.scrollTop = 0;
-                }, 50);
-              }}
-              onBlur={() => setIsInputFocused(false)}
-              placeholder="Ask me anything..."
-              className="relative flex-1 max-h-[100px] bg-transparent resize-none outline-none py-1.5 px-1 text-[15px] leading-relaxed no-scrollbar placeholder:text-slate-600 text-slate-950 font-semibold focus:outline-none focus:ring-0"
-              rows={1}
-              disabled={isTyping}
-            />
+            <div className="relative z-10 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowCommandMenu((prev) => !prev)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white/80 text-slate-700 shadow-sm transition-all hover:border-[#1C4D8C]/30 hover:text-[#1C4D8C]"
+                aria-label="Open special actions"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <path d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
 
-            {/* Integrated Circular Send Button - Dark Blue Theme */}
+              {showCommandMenu && (
+                <div className="absolute bottom-full left-0 mb-2 flex w-44 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-md">
+                  {(Object.entries(SPECIAL_COMMAND_OPTIONS) as Array<[SpecialCommandKey, (typeof SPECIAL_COMMAND_OPTIONS)[SpecialCommandKey]]>).map(([key, option]) => {
+                    const Icon = option.icon;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => activateSpecialCommand(key)}
+                        className="flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-[#1C4D8C]"
+                      >
+                        <Icon size={16} className="text-[#1C4D8C]" />
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="relative flex flex-1 items-center gap-0 overflow-hidden">
+              {commandConfig && (
+                <span className={cn("shrink-0 select-none py-1.5 text-[15px] leading-relaxed", commandConfig.commandClass)}>
+                  {commandConfig.prefix}
+                </span>
+              )}
+
+              <textarea
+                ref={textareaRef}
+                value={activeCommand ? inputValue.slice(commandConfig!.prefix.length) : inputValue}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                onFocus={() => {
+                  setIsInputFocused(true);
+                  setShowCommandMenu(false);
+                  setTimeout(() => {
+                    window.scrollTo(0, 0);
+                    document.body.scrollTop = 0;
+                  }, 50);
+                }}
+                onBlur={() => setIsInputFocused(false)}
+                placeholder={activeCommand ? "" : "Ask me anything..."}
+                className={cn(
+                  "relative flex-1 max-h-[100px] bg-transparent resize-none outline-none py-1.5 px-1 text-[15px] leading-relaxed no-scrollbar placeholder:text-slate-600 focus:outline-none focus:ring-0",
+                  commandConfig ? commandConfig.textClass : "text-slate-950 font-semibold"
+                )}
+                rows={1}
+                disabled={isTyping}
+              />
+            </div>
+
             <button
               onClick={() => handleSend()}
               disabled={!inputValue.trim() || isTyping}

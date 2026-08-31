@@ -109,6 +109,8 @@ class ChatService:
                         stored_user_message = parts[2].strip()
                 elif message_text.lower().startswith("cheat sheet:"):
                     stored_user_message = message_text.split(":", 1)[1].strip() or message_text
+                elif message_text.lower().startswith("quiz:"):
+                    stored_user_message = message_text.split(":", 1)[1].strip() or message_text
 
                 # 2. Save user message
                 user_msg = Message(
@@ -146,15 +148,34 @@ class ChatService:
                 # twice: once to suggest topics, once to generate the full
                 # question set as strict JSON. Everything else is deterministic.
                 quiz_state = conversation.quiz_state if hasattr(conversation, "quiz_state") else None
-                is_quiz_me = message_text.strip().lower() == "quiz me"
+                normalized_message = message_text.strip()
+                is_quiz_command = False
+                raw_topic = ""
+                quiz_prefix_match = re.match(r"^quiz(?:\s*:\s*|\s+)(.*)$", normalized_message, flags=re.IGNORECASE)
 
-                if is_quiz_me or quiz_state:
+                if quiz_prefix_match:
+                    is_quiz_command = True
+                    raw_topic = quiz_prefix_match.group(1).strip()
+                elif normalized_message.lower().startswith("/quiz"):
+                    is_quiz_command = True
+                    raw_topic = normalized_message[5:].strip().lstrip(":").strip()
+
+                if is_quiz_command and raw_topic:
+                    message_text = raw_topic
+
+                is_quiz_me = (
+                    normalized_message.strip().lower() in ("quiz me", "quiz")
+                    or (is_quiz_command and not raw_topic)
+                )
+
+                if is_quiz_me or is_quiz_command or quiz_state:
                     async for chunk in self._handle_quiz_flow(
                         db=db,
                         conversation=conversation,
                         user_message=message_text,
                         existing_quiz_state=quiz_state,
                         is_quiz_me=is_quiz_me,
+                        is_quiz_command=is_quiz_command,
                         course_id=course_id,
                         user_id=user_id,
                     ):
@@ -565,9 +586,24 @@ class ChatService:
             import traceback
             tb = traceback.format_exc()
             print(f"FATAL STREAM ERROR: {tb}")
-            error_msg = f"\n\nFatal error in stream processing: {str(e)}"
-            yield f"event: token\ndata: {json.dumps({'text': error_msg})}\n\n"
-            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+            message_text = str(e)
+            if getattr(e, "errno", None) == -5 or "No address associated with hostname" in message_text:
+                user_error = (
+                    "Network/DNS error: the backend could not resolve the AI host. "
+                    "Check the Docker network, internet connection, and the configured provider credentials."
+                )
+            elif "Temporary failure in name resolution" in message_text or "Name or service not known" in message_text:
+                user_error = (
+                    "DNS lookup failed while contacting the AI service. "
+                    "Please verify internet access and Docker DNS/network settings."
+                )
+            else:
+                user_error = f"Fatal error in stream processing: {message_text}"
+
+            formatted_error = f"\n\n{user_error}"
+            yield f"event: token\ndata: {json.dumps({'text': formatted_error})}\n\n"
+            yield f"event: error\ndata: {json.dumps({'error': user_error})}\n\n"
 
     # ─────────────────────────────────────────────────────────────────────
     # STRUCTURED QUIZ STATE MACHINE
@@ -580,6 +616,7 @@ class ChatService:
         user_message: str,
         existing_quiz_state: Optional[dict],
         is_quiz_me: bool,
+        is_quiz_command: bool = False,
         course_id: UUID,
         user_id: Optional[UUID],
     ) -> AsyncGenerator[str, None]:
@@ -678,8 +715,8 @@ class ChatService:
                     yield "event: done\ndata: {}\n\n"
                     return
 
-                if is_quiz_me:
-                    # New "quiz me" — restart the topic flow.
+                if is_quiz_me or is_quiz_command:
+                    # New quiz command — restart the topic flow.
                     conversation.quiz_state = None
                     await db.commit()
                     existing_quiz_state = None
@@ -697,6 +734,12 @@ class ChatService:
                     yield "event: done\ndata: {}\n\n"
                     return
 
+            if is_quiz_me or is_quiz_command:
+                # Direct quiz command received (e.g. Quiz: French revolution or quiz me).
+                # Override any existing incomplete quiz state.
+                if existing_quiz_state and not is_quiz_me:
+                    existing_quiz_state = None
+
             # ─────────────────────────────────────────────
             # PHASE 3: user submitted A/B/C/D → grade in pure Python
             # ─────────────────────────────────────────────
@@ -707,6 +750,8 @@ class ChatService:
                 and existing_quiz_state.get("topic")
                 and existing_quiz_state.get("questions")
                 and not existing_quiz_state.get("completed")
+                and not is_quiz_me
+                and not is_quiz_command
             ):
                 target_language = existing_quiz_state.get("language", target_language)
                 # The user's text is an answer choice. Normalise.
@@ -885,7 +930,7 @@ class ChatService:
             # ─────────────────────────────────────────────
             chosen_topic_raw = user_message.strip()
             # Normalise: case-insensitive match against the suggested topics
-            topics = existing_quiz_state.get("topics", [])
+            topics = existing_quiz_state.get("topics", []) if existing_quiz_state else []
             chosen_topic = None
             all_topics_match = chosen_topic_raw.lower() in {
                 "all topics", "all topics (mixed)", "all", "everything"
@@ -901,7 +946,7 @@ class ChatService:
                     # User free-typed a topic. Treat it as the chosen one.
                     chosen_topic = chosen_topic_raw
 
-            target_language = existing_quiz_state.get("language", target_language)
+            target_language = existing_quiz_state.get("language", target_language) if existing_quiz_state else target_language
             yield f"event: status\ndata: {json.dumps({'message': 'Generating quiz questions...'})}\n\n"
 
             # Re-retrieve chunks using the chosen topic as the query so the
@@ -940,7 +985,7 @@ class ChatService:
                 db.add(assistant_msg)
                 # Keep topics so the student can pick again.
                 conversation.quiz_state = {
-                    **existing_quiz_state,
+                    **(existing_quiz_state or {}),
                     "topic": None,
                 }
                 await db.commit()
@@ -965,7 +1010,7 @@ class ChatService:
                     sources=[],
                 )
                 db.add(assistant_msg)
-                conversation.quiz_state = {**existing_quiz_state, "topic": None}
+                conversation.quiz_state = {**(existing_quiz_state or {}), "topic": None}
                 await db.commit()
                 yield f"event: quiz_topics\ndata: {json.dumps({'language': target_language, 'topics': topics})}\n\n"
                 yield "event: done\ndata: {}\n\n"
@@ -1014,7 +1059,13 @@ class ChatService:
             import traceback
             tb = traceback.format_exc()
             print(f"QUIZ FLOW ERROR: {tb}")
-            err = f"Quiz error: {str(e)}"
+
+            message_text = str(e)
+            if getattr(e, "errno", None) == -5 or "No address associated with hostname" in message_text:
+                err = "DNS/network error: the backend could not resolve the AI host while generating the quiz. Check internet access and Docker networking."
+            else:
+                err = f"Quiz error: {message_text}"
+
             yield f"event: token\ndata: {json.dumps({'text': err})}\n\n"
             yield f"event: error\ndata: {json.dumps({'error': err})}\n\n"
 

@@ -280,13 +280,13 @@ class QuizService:
             if len(validated) == self.QUESTION_COUNT:
                 break
 
-        if len(validated) < self.QUESTION_COUNT:
+        if len(validated) < self.MIN_QUESTIONS:
             print(
-                f"QUIZ question validation kept {len(validated)}/{self.QUESTION_COUNT} unique questions",
+                f"QUIZ question validation kept {len(validated)}/{self.MIN_QUESTIONS} unique questions (needed at least {self.MIN_QUESTIONS})",
                 flush=True,
             )
             return None
-        return validated
+        return validated[:self.QUESTION_COUNT]
 
     # ── Pure-Python state-machine: build a fresh quiz_state ──────────────
     def new_quiz_state(
