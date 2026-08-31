@@ -70,10 +70,10 @@ CORE RULES:
 
 7. QUICK COMMANDS:
 - If the message is EXACTLY "Explain a concept", respond EXACTLY with: "Sure, which concept would you like me to explain?"
-- If the message is EXACTLY "Summarize a chapter", respond EXACTLY with: "Sure, which chapter would you like me to summarize?"
+- If the message is EXACTLY "Generate Cheat Sheet", respond EXACTLY with: "I’ll generate a cheat sheet from your course material."
 
 8. QUIZ MODE OVERRIDE:
-- While GRADING an existing quiz answer (evaluating the student's response to a question already asked), the fallback rule (Rule 3) does NOT apply. You must evaluate the student's answer (marking ✅ Correct! or ❌ Not quite.) and ask the next question. NEVER output the "I do not have enough information" fallback while grading.
+- While GRADING an existing quiz answer (evaluating the student's response to a question already asked), the fallback rule (Rule 3) does NOT apply. You must evaluate the student's answer (marking Correct! or Not quite.) and ask the next question. NEVER output the "I do not have enough information" fallback while grading.
 - However, when a NEW quiz topic has just been chosen (before Question 1 is written), Rule 3 DOES apply: only start the quiz if the Reference Material actually contains real, substantive content on that topic. If the student picks a topic not covered by the Reference Material (including a free-typed topic via "type your own topic"), do NOT invent questions from general knowledge — output the standard fallback message instead and do not ask a question.
 """
 
@@ -104,6 +104,119 @@ Do not write anything else, do not suggest alternative topics from the text, and
 [FOLLOWUP: Question 2]
 [FOLLOWUP: Question 3]
 Do NOT write any introductory text like "Here are some follow-up questions:" before them."""
+
+CHEAT_SHEET_PROMPT_TEMPLATE = """Reference Material:
+{context}
+
+Previous Conversation:
+{history}
+
+Student Request: {question}
+
+>>> {language_directive} <<<
+
+You are an expert tutor creating a compact, high-yield cheat sheet from the course materials.
+Use ONLY the Reference Material above. Do not invent facts outside the course.
+
+Rules:
+- Combine and deduplicate the most important facts from all provided chunks.
+- Output clean Markdown only.
+- Use exactly these 3 sections, in order:
+## Key Formulas
+## Essential Vocabulary & Terms
+## Core Rules & Principles
+- Each section must contain bullet points only.
+- Keep each bullet short and high-yield.
+- Max 8 bullet points per section.
+- If a section has no relevant items, use a short bullet like "No clear formula found in this material."
+- Do not add intro text, conclusions, or follow-up questions.
+- Do not wrap the response in code fences.
+- Be concise but specific.
+
+Output ONLY the Markdown cheat sheet.
+"""
+
+EXPLAIN_CONCEPT_PROMPT_TEMPLATE = """Reference Material:
+{context}
+
+Previous Conversation:
+{history}
+
+Concept: {concept}
+Depth mode: {mode}
+
+>>> {language_directive} <<<
+
+You are an expert tutor. Explain the concept using ONLY the Reference Material.
+Do not invent facts. Output clean Markdown only, with no introduction or conclusion.
+Keep the response under 350 words and follow the selected structure exactly.
+
+If the Reference Material does not contain substantive information about the
+concept, output only: I do not have enough information to explain this concept
+based on the course materials.
+
+Selected output structure:
+{structure}
+"""
+
+
+def build_explain_concept_prompt(
+    context_chunks: list,
+    conversation_history: list,
+    concept: str,
+    mode: str,
+) -> str:
+    """Build a compact, mode-specific concept explanation prompt."""
+    context = "\n\n".join(
+        f"--- Reference Text {index} ---\n{chunk.get('text', '')}"
+        for index, chunk in enumerate(context_chunks, 1)
+    ) or "No reference material available."
+    history = "\n\n".join(
+        f"{'Student' if item.get('role') == 'user' else 'Assistant'}: {item.get('content', '')}"
+        for item in conversation_history
+    ) or "No previous conversation."
+    malayalam_chars = len(re.findall(r'[\u0D00-\u0D7F]', concept))
+    target_language = "MALAYALAM" if malayalam_chars >= 2 else "ENGLISH"
+    language_directive = (
+        "MANDATORY OUTPUT LANGUAGE: MALAYALAM. Write in Malayalam script."
+        if target_language == "MALAYALAM"
+        else "MANDATORY OUTPUT LANGUAGE: ENGLISH. Translate source material into English."
+    )
+    structures = {
+        "ELI5": (
+            "SIMPLE EXPLANATION (use this structure only):\n"
+            "1. **Core Idea**: exactly one simple sentence.\n"
+            "2. **Everyday Example**: exactly two sentences using a familiar situation.\n"
+            "3. **Remember These**: exactly three short bullet points.\n"
+            "4. **Common Misconception**: exactly one bullet point.\n"
+            "Do not use technical definitions, exam questions, formulas, or a related-concepts section."
+        ),
+        "DEEP_DIVE": (
+            "DEEP DIVE (use this structure only):\n"
+            "1. **Technical Definition**: exactly one precise sentence.\n"
+            "2. **Mechanics**: three to five detailed bullet points explaining how it works; include formulas only when present in the source.\n"
+            "3. **Conditions and Edge Cases**: exactly three precise bullet points.\n"
+            "4. **Related Concepts**: exactly three connections, each with a one-sentence explanation.\n"
+            "Do not use analogies, exam questions, or a simple-summary section."
+        ),
+        "EXAM_FOCUSED": (
+            "EXAM-FOCUSED (use this structure only):\n"
+            "1. **10-Second Summary**: exactly one high-yield sentence.\n"
+            "2. **Likely Exam Questions**: exactly two bullet points phrased as questions, with a short answer after each.\n"
+            "3. **Must-Include Keywords**: exactly five bold terms, each followed by a brief meaning.\n"
+            "4. **Common Trap**: exactly one bullet point describing a likely mistake.\n"
+            "Do not use analogies, formulas-and-mechanics, edge-case, or related-concepts sections."
+        ),
+    }
+    safe_mode = mode if mode in structures else "ELI5"
+    return EXPLAIN_CONCEPT_PROMPT_TEMPLATE.format(
+        context=context,
+        history=history,
+        concept=concept,
+        mode=safe_mode,
+        structure=structures[safe_mode],
+        language_directive=language_directive,
+    )
 
 QUIZ_START_PROMPT_TEMPLATE = """Reference Material:
 {context}
@@ -176,14 +289,14 @@ STEP 1 — STRICT EVALUATION (NO FALSE POSITIVES):
   * Determine which option letter is TRUE according to the Reference Material.
   * Check the student's selected letter (e.g. "A", "B", "C", "D").
   * If the student chose the WRONG letter (e.g. student chose D, but correct was B):
-    You MUST start with: ❌ **Not quite.** The correct answer is [Correct Option Letter]: [Correct explanation].
-  * Only if the student chose the EXACT correct letter, start with: ✅ **Correct!** [Brief explanation].
+        You MUST start with: **Not quite.** The correct answer is [Correct Option Letter]: [Correct explanation].
+    * Only if the student chose the EXACT correct letter, start with: **Correct!** [Brief explanation].
 - If the question was open-ended:
   * If the student gave an incorrect, inaccurate, or off-topic answer:
-    You MUST start with: ❌ **Not quite.** [Explain the true answer from Reference Material].
-  * If accurate, start with: ✅ **Correct!** [Brief explanation].
+        You MUST start with: **Not quite.** [Explain the true answer from Reference Material].
+    * If accurate, start with: **Correct!** [Brief explanation].
 - Your explanation MUST be about the Previous Question shown above — never reuse or repeat an explanation that belongs to a different, earlier question.
-- CRITICAL: Never say ✅ Correct if the student picked the wrong option or wrote a wrong fact!
+- CRITICAL: Never say Correct if the student picked the wrong option or wrote a wrong fact!
 
 {step2_instruction}
 
@@ -220,6 +333,43 @@ def _extract_last_question(conversation_history: list) -> dict:
             question_text = content[last_match.start():].strip()
             return {"number": number, "text": question_text}
     return {"number": 0, "text": ""}
+
+
+def build_cheat_sheet_prompt(
+    context_chunks: list,
+    conversation_history: list,
+    question: str,
+) -> str:
+    """Build a markdown cheat sheet prompt grounded in the actual PDF chunks."""
+    context_parts = []
+    for i, chunk in enumerate(context_chunks, 1):
+        text = chunk.get('text', '')
+        context_parts.append(f"--- Reference Text {i} ---\n{text}\n")
+
+    context_str = "\n".join(context_parts) if context_parts else "No reference material available."
+
+    history_str = ""
+    if conversation_history:
+        for msg in conversation_history:
+            role_val = msg.get('role', '')
+            role = "Student" if role_val == "user" else "Assistant"
+            history_str += f"{role}: {msg.get('content', '')}\n\n"
+
+    malayalam_chars = len(re.findall(r'[\u0D00-\u0D7F]', question))
+    if malayalam_chars >= 2:
+        target_language = "MALAYALAM"
+        language_directive = "MANDATORY OUTPUT LANGUAGE: MALAYALAM. Write the cheat sheet in Malayalam script."
+    else:
+        target_language = "ENGLISH"
+        language_directive = "MANDATORY OUTPUT LANGUAGE: ENGLISH. Even if the source material is Malayalam, translate the key facts into English."
+
+    return CHEAT_SHEET_PROMPT_TEMPLATE.format(
+        context=context_str,
+        history=history_str,
+        question=question,
+        target_language=target_language,
+        language_directive=language_directive,
+    )
 
 
 def build_rag_prompt(
@@ -310,7 +460,7 @@ def build_rag_prompt(
                     "- Do NOT ask another question.\n"
                     "- Count the total correct answers across the whole quiz using the Previous Conversation.\n"
                     "- Output exactly:\n"
-                    "**🎯 Quiz Complete!**\n"
+                    "**Quiz Complete!**\n"
                     "**Your Score: X/10**\n"
                     "(Add a brief encouraging summary.)"
                 )

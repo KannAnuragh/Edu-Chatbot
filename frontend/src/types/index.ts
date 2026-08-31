@@ -37,12 +37,42 @@ export interface SourceReference {
   chunk_text: string;
 }
 
+export interface CheatSheetSection {
+  title: string;
+  items: string[];
+}
+
+export interface CheatSheet {
+  id: string;
+  title: string;
+  summary: string;
+  sections: CheatSheetSection[];
+  generated_at: string;
+  raw_markdown?: string;
+}
+
+export type ExplainMode = "ELI5" | "DEEP_DIVE" | "EXAM_FOCUSED";
+
+export interface ExplainPromptPayload {
+  modes: ExplainMode[];
+}
+
+export interface ExplainResponse {
+  mode: ExplainMode;
+  concept: string;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   sources?: SourceReference[];
   created_at: string;
+  cheatSheet?: CheatSheet;
+  explain?: {
+    variant: "prompt" | "response";
+    data: ExplainPromptPayload | ExplainResponse;
+  };
   // Optional structured quiz payload. When present, the message bubble
   // renders a QuizCard alongside its text content. This is the in-memory
   // representation of the structured quiz state that the backend persists
@@ -81,6 +111,8 @@ export interface SSEEvent {
     | "error"
     | "status"
     | "quiz_topics"
+    | "cheat_sheet"
+    | "explain_prompt"
     | "quiz_question"
     | "quiz_result";
   data: any;

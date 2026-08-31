@@ -23,7 +23,7 @@ interface QuizCardProps {
  * Structured quiz UI. Three variants:
  *  - "topics":    Renders the topic picker buttons.
  *  - "question":  Renders a multiple-choice question with clickable option chips.
- *  - "result":    Shows ✅/❌ feedback for the just-graded answer.
+ *  - "result":    Shows feedback for the just-graded answer.
  *  - "complete":  Shows the final score.
  */
 export default function QuizCard({

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Send, Paperclip, Trash2, HelpCircle, BookOpen, GraduationCap } from "lucide-react";
+import { Send, Paperclip, Trash2, HelpCircle, BookOpen, GraduationCap, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import {
   type Message,
@@ -10,9 +10,13 @@ import {
   type SSEEvent,
   type QuizQuestion,
   type QuizTopicsPayload,
+  type CheatSheet,
+  type ExplainMode,
+  type ExplainPromptPayload,
 } from "@/types";
 import MessageBubble from "./MessageBubble";
 import QuizCard from "./QuizCard";
+import ExplainCard from "./ExplainCard";
 import EtherealAvatar from "./EtherealAvatar";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -35,8 +39,8 @@ const SUGGESTIONS = [
   {
     icon: <BookOpen size={20} className="text-teal-600" />,
     iconBg: "bg-teal-50 border border-teal-100/80 group-hover:bg-teal-100/80",
-    title: "Summarize a chapter",
-    subtitle: "Get key points from any topic",
+    title: "Generate Cheat Sheet",
+    subtitle: "Extract high-yield formulas, terms, and core rules",
   },
   {
     icon: <GraduationCap size={20} className="text-amber-600" />,
@@ -45,6 +49,80 @@ const SUGGESTIONS = [
     subtitle: "Test your knowledge on course topics",
   },
 ];
+
+const parseCheatSheetMarkdown = (markdown: string): CheatSheet => {
+  const normalized = markdown.trim();
+  const sections: { title: string; items: string[] }[] = [];
+  const lines = normalized.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+
+  let currentTitle: string | null = null;
+  let currentItems: string[] = [];
+
+  for (const line of lines) {
+    const headingMatch = line.match(/^##\s+(.+)$/);
+    if (headingMatch) {
+      if (currentTitle) {
+        sections.push({ title: currentTitle, items: currentItems });
+      }
+      currentTitle = headingMatch[1].trim();
+      currentItems = [];
+      continue;
+    }
+
+    const itemMatch = line.match(/^[-*•]\s*(.+)$/);
+    if (currentTitle && itemMatch) {
+      currentItems.push(itemMatch[1].trim());
+      continue;
+    }
+
+    if (currentTitle && line.length > 0) {
+      currentItems.push(line);
+    }
+  }
+
+  if (currentTitle) {
+    sections.push({ title: currentTitle, items: currentItems });
+  }
+
+  const fallbackTitle = sections[0]?.title || "High-Yield Cheat Sheet";
+  const cleanedSections = sections.length > 0 ? sections : [{ title: "Quick Notes", items: [normalized] }];
+
+  return {
+    id: `cheat-sheet-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    title: fallbackTitle,
+    summary: "Generated from the course material and saved for this account/project.",
+    sections: cleanedSections.map((section) => ({
+      title: section.title,
+      items: section.items.filter(Boolean),
+    })),
+    generated_at: new Date().toISOString(),
+    raw_markdown: normalized,
+  };
+};
+
+const getCheatSheetStorageKey = (projectId: string, userId?: string | null) => {
+  const accountKey = userId || "anonymous";
+  return `aca_cheat_sheet:${accountKey}:${projectId}`;
+};
+
+const readStoredCheatSheet = (projectId: string, userId?: string | null): CheatSheet | null => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = localStorage.getItem(getCheatSheetStorageKey(projectId, userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CheatSheet | null;
+    return parsed && parsed.sections?.length ? parsed : null;
+  } catch (error) {
+    console.warn("Failed to read stored cheat sheet", error);
+    return null;
+  }
+};
+
+const writeStoredCheatSheet = (projectId: string, userId: string | null | undefined, sheet: CheatSheet) => {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(getCheatSheetStorageKey(projectId, userId), JSON.stringify(sheet));
+};
 
 export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onViewNote, onHasMessagesChange }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -59,6 +137,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
   const [isInitializing, setIsInitializing] = useState(true);
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const [isCheatSheetSelectionMode, setIsCheatSheetSelectionMode] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -314,8 +393,42 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
   };
 
   const handleSend = async (overrideMessage?: string) => {
-    const messageToSend = overrideMessage || inputValue.trim();
+    const rawMessage = overrideMessage || inputValue.trim();
+    const rawMessageLower = rawMessage.toLowerCase();
+    const isCheatSheetCommand = rawMessageLower === "generate cheat sheet";
+    const isExplicitCheatSheetTopic = rawMessageLower.startsWith("cheat sheet:");
+    const isExplainCommand = rawMessageLower.startsWith("explain concept|");
+    const isQuizCommand = rawMessageLower.startsWith("quiz me") || rawMessageLower.startsWith("quiz ");
+    const isSpecialCommand =
+      isCheatSheetCommand ||
+      isExplicitCheatSheetTopic ||
+      isExplainCommand ||
+      isQuizCommand;
+
+    // Any normal question typed while a guided flow is active should fall back to
+    // regular chat behavior instead of being forced into a special feature mode.
+    const isNormalChatPrompt = !!rawMessage && !isSpecialCommand;
+
+    if (isCheatSheetSelectionMode && isNormalChatPrompt) {
+      setIsCheatSheetSelectionMode(false);
+    }
+
+    const messageToSend =
+      isCheatSheetSelectionMode &&
+      rawMessage &&
+      !isSpecialCommand &&
+      !isNormalChatPrompt
+        ? `Cheat Sheet: ${rawMessage}`
+        : rawMessage;
     if (!messageToSend || isTyping) return;
+
+    const displayMessage = messageToSend.toLowerCase().startsWith("explain concept|")
+      ? messageToSend.split("|", 2).length > 1
+        ? messageToSend.split("|", 3)[2] || messageToSend
+        : messageToSend
+      : messageToSend.toLowerCase().startsWith("cheat sheet:")
+        ? messageToSend.split(":").slice(1).join(":").trim() || messageToSend
+        : messageToSend;
 
     setInputValue("");
     if (textareaRef.current) {
@@ -327,7 +440,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
     const optimisticUserMsg: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: messageToSend,
+      content: displayMessage,
       created_at: new Date().toISOString(),
     };
 
@@ -335,6 +448,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
     setIsTyping(true);
 
     let assistantSources: SourceReference[] = [];
+    let isCheatSheetResponse = false;
     let assistantMsgId = (Date.now() + 1).toString();
 
     // Create an empty placeholder message for the assistant
@@ -384,10 +498,23 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
             // Hide status messages from the typewriter (we don't want to
             // show "Generating quiz questions..." in the bubble).
           } else if (event.type === "quiz_topics") {
+            if (event.data.mode === "cheat_sheet") {
+              setIsCheatSheetSelectionMode(true);
+            }
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === assistantMsgId
                   ? { ...msg, quiz: { variant: "topics", data: event.data as QuizTopicsPayload } }
+                  : msg
+              )
+            );
+          } else if (event.type === "cheat_sheet") {
+            isCheatSheetResponse = true;
+          } else if (event.type === "explain_prompt") {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMsgId
+                  ? { ...msg, explain: { variant: "prompt", data: event.data as ExplainPromptPayload } }
                   : msg
               )
             );
@@ -413,6 +540,20 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
           }
         }
       );
+
+      if (isCheatSheetResponse || messageToSend.startsWith("Cheat Sheet:")) {
+        const generatedText = streamTargetRef.current.trim();
+        const looksLikeCheatSheet = /##\s+|^[-*•]\s+/m.test(generatedText);
+        if (generatedText && looksLikeCheatSheet) {
+          const parsed = parseCheatSheetMarkdown(generatedText);
+          writeStoredCheatSheet(projectId, user?.id || null, parsed);
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMsgId ? { ...msg, cheatSheet: parsed, content: generatedText } : msg
+            )
+          );
+        }
+      }
     } catch (error: any) {
       console.error("Chat error:", error);
       const isAuthErr = error.message?.includes("token") || error.message?.includes("authenticated") || error.message?.includes("401") || error.message?.includes("403");
@@ -455,17 +596,50 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
   };
 
   const handleSuggestionClick = (title: string) => {
+    if (title === "Generate Cheat Sheet") {
+      setIsCheatSheetSelectionMode(true);
+      const existing = readStoredCheatSheet(projectId, user?.id || null);
+      if (existing) {
+        const now = new Date().toISOString();
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: existing.raw_markdown || "Here is your saved high-yield cheat sheet.",
+          created_at: now,
+          cheatSheet: existing,
+        };
+        setMessages((prev) => [...prev, { id: Date.now().toString(), role: "user", content: "Generate Cheat Sheet", created_at: now }, assistantMessage]);
+        return;
+      }
+    }
+
     handleSend(title);
+  };
+
+  const handleReloadCheatSheet = () => {
+    if (typeof window !== "undefined") {
+      const key = getCheatSheetStorageKey(projectId, user?.id || null);
+      localStorage.removeItem(key);
+    }
+    setIsCheatSheetSelectionMode(true);
+    handleSend("Generate Cheat Sheet");
   };
 
   const handleQuizTopicPick = (topic: string) => {
     if (isTyping) return;
-    handleSend(topic);
+    const payload = isCheatSheetSelectionMode ? `Cheat Sheet: ${topic}` : topic;
+    setIsCheatSheetSelectionMode(false);
+    handleSend(payload);
   };
 
   const handleQuizAnswer = (key: "A" | "B" | "C" | "D") => {
     if (isTyping) return;
     handleSend(key);
+  };
+
+  const handleExplainSubmit = (concept: string, mode: ExplainMode) => {
+    if (isTyping) return;
+    handleSend(`Explain Concept|${mode}|${concept}`);
   };
 
   return (
@@ -525,7 +699,7 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
           "flex-1 no-scrollbar px-4 relative z-20",
           messages.length === 0
             ? (isInputFocused ? "flex flex-col h-full overflow-hidden pt-14 md:pt-0" : "flex flex-col h-full overflow-y-auto pt-14 md:pt-0")
-            : "overflow-y-auto pb-32 pt-14 md:pt-0"
+            : "overflow-y-auto pb-20 pt-14 md:pt-0"
         )}
       >
         <div className={cn("max-w-lg mx-auto w-full relative z-20", messages.length === 0 ? "flex-grow shrink-0 flex flex-col min-h-full" : "space-y-4 pb-2")}>
@@ -622,19 +796,64 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
                   data-message-id={msg.id}
                   className={msg.role === 'user' ? 'user-message-wrapper' : ''}
                 >
-                  <MessageBubble
-                    message={msg}
-                    onSourceClick={onSourceClick}
-                    onViewNote={onViewNote}
-                    onRegenerate={msg.role === 'assistant' ? () => handleRegenerate(msg.id) : undefined}
-                    isStreaming={isTyping && index === messages.length - 1}
-                    isLatest={index === messages.length - 1}
-                    onSendFollowUp={(text) => handleSend(text)}
-                  />
+                  {!msg.cheatSheet && (
+                    <MessageBubble
+                      message={msg}
+                      onSourceClick={onSourceClick}
+                      onViewNote={onViewNote}
+                      onRegenerate={msg.role === 'assistant' ? () => handleRegenerate(msg.id) : undefined}
+                      isStreaming={isTyping && index === messages.length - 1}
+                      isLatest={index === messages.length - 1}
+                      onSendFollowUp={(text) => handleSend(text)}
+                    />
+                  )}
                   {/* Structured quiz card. Rendered alongside the bubble so
                       the markdown text and the interactive UI sit together. */}
+                  {msg.role === "assistant" && msg.cheatSheet && (
+                    <div className="mx-auto w-full max-w-[720px] -mt-1">
+                      <div className="mb-3 flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-sm">
+                        <span className="flex items-center gap-2">
+                          <BookOpen size={14} className="text-[#1C4D8C]" />
+                          {msg.cheatSheet.title}
+                        </span>
+                        <button
+                          onClick={handleReloadCheatSheet}
+                          className="inline-flex items-center gap-1 rounded-full border border-[#1C4D8C]/20 bg-[#1C4D8C]/5 px-2 py-1 text-[11px] font-medium text-[#1C4D8C] hover:bg-[#1C4D8C]/10"
+                          type="button"
+                        >
+                          <RefreshCw size={12} />
+                          Reload
+                        </button>
+                      </div>
+
+                      <div className="rounded-[24px] border border-slate-200/80 bg-white/95 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)]">
+                        <div className="mb-4 flex items-center gap-2 text-[#1C4D8C]">
+                          <BookOpen size={16} />
+                          <div className="text-[12px] font-semibold uppercase tracking-[0.12em]">Study cheat sheet</div>
+                        </div>
+
+                        <p className="mb-4 text-[13px] leading-relaxed text-slate-700">{msg.cheatSheet.summary}</p>
+
+                        <div className="space-y-4">
+                          {msg.cheatSheet.sections.map((section) => (
+                            <div key={section.title} className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+                              <div className="mb-2 text-[13px] font-semibold text-slate-900">{section.title.replace(/^#+\s*/, "")}</div>
+                              <ul className="space-y-2 pl-4 text-[13px] leading-relaxed text-slate-700">
+                                {section.items.map((item) => (
+                                  <li key={item} className="list-disc marker:text-[#1C4D8C] pl-1">
+                                    <span className="text-slate-700">{item.replace(/\*\*|__|\*|_/g, "")}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {msg.role === "assistant" && msg.quiz && (
-                    <div className="ml-11 -mt-1">
+                    <div className="mx-auto w-full max-w-[720px] -mt-1">
                       <QuizCard
                         variant={msg.quiz.variant}
                         data={msg.quiz.data as any}
@@ -646,6 +865,17 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
                         locked={msg.quiz.variant === "result"}
                         disabled={isTyping}
                       />
+                    </div>
+                  )}
+                  {msg.role === "assistant" && msg.explain && (
+                    <div className="mx-auto w-full max-w-[720px] -mt-1">
+                      {msg.explain.variant === "prompt" && (
+                        <ExplainCard
+                          data={msg.explain.data as ExplainPromptPayload}
+                          onSubmit={handleExplainSubmit}
+                          disabled={isTyping}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
@@ -675,26 +905,26 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
 
 
 
-      {/* ─── Composer Area — Floating Unified Input Pill (Perfect Alignment) ─── */}
+      {/* ─── Composer Area — Floating Unified Input ─── */}
       <div className={cn(
-        "absolute bottom-0 left-0 right-0 px-4 pt-12 pb-4 md:pb-5 bg-gradient-to-t from-[var(--nimbus-bg)]/60 via-[var(--nimbus-bg)]/20 to-transparent pointer-events-none z-30 transition-[opacity,transform] duration-700 delay-[900ms]",
+        "absolute bottom-0 left-0 right-0 px-4 pt-6 pb-4 md:pb-5 bg-gradient-to-t from-[var(--nimbus-bg)]/60 via-[var(--nimbus-bg)]/20 to-transparent pointer-events-none z-30 transition-[opacity,transform] duration-700 delay-[900ms]",
         (messages.length === 0 && isInitializing) ? "opacity-0 translate-y-8" : "opacity-100 translate-y-0"
       )} style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
         <div className="max-w-lg mx-auto pointer-events-auto">
-          {/* Single Unified Floating Pill Box */}
+          {/* Single unified floating input box */}
           <div
-            className="group relative isolate overflow-hidden flex items-center gap-2 rounded-full backdrop-blur-lg px-4 py-2 transition-shadow shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.9),inset_0_-1px_1px_rgba(0,0,0,0.04),0_10px_30px_rgba(28,77,140,0.16)]"
+            className="group relative isolate overflow-hidden flex items-center gap-2 rounded-2xl backdrop-blur-lg px-4 py-2 transition-shadow shadow-[inset_0_1.5px_1px_rgba(255,255,255,0.9),inset_0_-1px_1px_rgba(0,0,0,0.04),0_10px_30px_rgba(28,77,140,0.16)]"
             style={{
               background:
                 'linear-gradient(160deg, rgba(255,255,255,0.82) 0%, rgba(232,240,251,0.7) 100%)',
             }}
           >
-            {/* Adaptive glass border - blends with whatever is behind the pill */}
-            <div className="pointer-events-none absolute inset-0 rounded-full border border-white/40" />
+            {/* Adaptive glass border - blends with whatever is behind the input */}
+            <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/40" />
             {/* Quiet static ring */}
-            <div className="pointer-events-none absolute inset-0 rounded-full border border-white/25" />
+            <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/25" />
             {/* Glass sheen across the top, same treatment as the message bubbles */}
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-1/2 rounded-t-full bg-gradient-to-b from-white/40 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-1/2 rounded-t-2xl bg-gradient-to-b from-white/40 to-transparent" />
 
             <textarea
               ref={textareaRef}

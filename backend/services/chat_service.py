@@ -17,7 +17,7 @@ from sqlalchemy import select
 from models.conversation import Conversation, Message, MessageRole
 from services.retrieval_service import RetrievalService
 from services.quiz_service import quiz_service
-from llm.prompts import build_rag_prompt, UngroundedTopicError
+from llm.prompts import build_rag_prompt, build_cheat_sheet_prompt, build_explain_concept_prompt, UngroundedTopicError
 from providers.factory import llm_client
 from ingestion.pipeline import fix_malayalam_pdf_font_artifacts
 
@@ -30,6 +30,9 @@ RELEVANCE_THRESHOLD = 0.30
 _RE_LONG_NUMBERS = re.compile(r'[0-9]{15,}')
 _RE_SCERT_HEADER = re.compile(r'സാമൂഹ്യശാസ്[്രത]*ം.*?സംസ്കാരവും ദശീേയതയും')
 _RE_MULTI_SPACES = re.compile(r'\s+')
+_RE_EXPLANATION_NOTE = re.compile(
+    r'(?im)^\s*note:\s*(?:the\s+)?reference\s+material\s+does\s+not\s+contain[^\n]*(?:\n|$)'
+)
 
 def sanitize_chunk_text(text: str) -> str:
     """Dynamically clean chunk text before sending to LLM to remove PDF extraction artifacts."""
@@ -44,6 +47,12 @@ def sanitize_chunk_text(text: str) -> str:
     # 4. Clean up any remaining multiple spaces left by deletions
     text = _RE_MULTI_SPACES.sub(' ', text).strip()
     return text
+
+
+def clean_explanation_response(text: str) -> str:
+    """Remove model metadata notes before an explanation reaches the chat."""
+    cleaned = _RE_EXPLANATION_NOTE.sub('', text or '').strip()
+    return cleaned or "I could not find enough course material to explain this topic."
 
 
 class ChatService:
@@ -92,14 +101,33 @@ class ChatService:
                         yield f"event: error\ndata: {json.dumps({'error': 'Conversation not found'})}\n\n"
                         return
 
+                # Keep routing metadata out of the visible conversation history.
+                stored_user_message = message_text
+                if message_text.lower().startswith("explain concept|"):
+                    parts = message_text.split("|", 2)
+                    if len(parts) == 3 and parts[2].strip():
+                        stored_user_message = parts[2].strip()
+                elif message_text.lower().startswith("cheat sheet:"):
+                    stored_user_message = message_text.split(":", 1)[1].strip() or message_text
+
                 # 2. Save user message
                 user_msg = Message(
                     conversation_id=conversation_id,
                     role=MessageRole.USER,
-                    content=message_text,
+                    content=stored_user_message,
                 )
                 db.add(user_msg)
                 await db.commit()
+
+                # Load history early so the chapter-selection cheat-sheet flow can
+                # build its prompt without an uninitialized variable.
+                history_result = await db.execute(
+                    select(Message)
+                    .where(Message.conversation_id == conversation_id)
+                    .order_by(Message.created_at.asc())
+                )
+                all_messages = history_result.scalars().all()
+                history_messages = all_messages[:-1] if len(all_messages) > 1 else []
 
                 # Send conversation ID to client immediately
                 yield f"event: meta\ndata: {json.dumps({'conversation_id': str(conversation_id)})}\n\n"
@@ -139,12 +167,10 @@ class ChatService:
                 message_text_clean = message_text.strip()
                 fast_response = None
                 if message_text_clean == "Explain a concept":
-                    fast_response = "Sure, which concept would you like me to explain?"
-                elif message_text_clean == "Summarize a chapter":
-                    fast_response = "Sure, which chapter would you like me to summarize?"
-                # NOTE: "Quiz me" is NOT fast-pathed — it goes through the RAG
-                # pipeline so the LLM can read the reference material and suggest
-                # 5 quiz topics from the actual course content.
+                    yield f"event: explain_prompt\ndata: {json.dumps({'modes': ['ELI5', 'DEEP_DIVE', 'EXAM_FOCUSED']})}\n\n"
+                    fast_response = "Choose a concept and depth mode."
+                # NOTE: "Quiz me" and cheat-sheet flows are handled below with
+                # topic selection and retrieval so the content stays focused.
 
                 if fast_response:
                     # Yield token instantly
@@ -164,33 +190,165 @@ class ChatService:
                     return
                 # ----------------------------------------
 
-                # Send conversation ID to client immediately
-                yield f"event: meta\ndata: {json.dumps({'conversation_id': str(conversation_id)})}\n\n"
-
-                # --- FAST PATH FOR SUGGESTION COMMANDS ---
-                message_text_clean = message_text.strip()
-                fast_response = None
-                if message_text_clean == "Explain a concept":
-                    fast_response = "Sure, which concept would you like me to explain?"
-                elif message_text_clean == "Summarize a chapter":
-                    fast_response = "Sure, which chapter would you like me to summarize?"
-                # NOTE: "Quiz me" is NOT fast-pathed — the structured quiz
-                # state machine above handles it (see _handle_quiz_flow).
-
-                if fast_response:
-                    # Yield token instantly
-                    yield f"event: token\ndata: {json.dumps({'text': fast_response})}\n\n"
-
-                    # Save assistant message
+                if message_text_clean.startswith("Explain Concept|"):
+                    _, mode, concept = message_text_clean.split("|", 2)
+                    concept = concept.strip()
+                    mode = mode.strip().upper()
+                    raw_chunks = await self.retrieval.retrieve_relevant_chunks(
+                        user_id=str(user_id) if user_id else None,
+                        course_id=str(course_id),
+                        query=concept,
+                        top_k=5,
+                    )
+                    chunks = [
+                        dict(chunk, text=sanitize_chunk_text(chunk.get('text', '')))
+                        for chunk in raw_chunks
+                        if chunk.get('score', 0.0) >= RELEVANCE_THRESHOLD
+                    ][:5]
+                    history = [{"role": msg.role.value, "content": msg.content} for msg in history_messages]
+                    prompt = build_explain_concept_prompt(chunks, history, concept, mode)
+                    raw_response = await llm_client.generate_response_async(prompt)
+                    full_response = clean_explanation_response(str(raw_response or ""))
+                    yield f"event: token\ndata: {json.dumps({'text': full_response})}\n\n"
                     assistant_msg = Message(
                         conversation_id=conversation_id,
                         role=MessageRole.ASSISTANT,
-                        content=fast_response,
+                        content=full_response,
                         sources=[],
                     )
                     db.add(assistant_msg)
                     await db.commit()
+                    yield "event: done\ndata: {}\n\n"
+                    return
 
+                # Send conversation ID to client immediately
+                yield f"event: meta\ndata: {json.dumps({'conversation_id': str(conversation_id)})}\n\n"
+
+                # Cheat-sheet selection flow: user clicks the suggestion, then the
+                # UI sends a chosen chapter name like "Cheat Sheet: Indian Constitution".
+                if message_text_clean == "Generate Cheat Sheet":
+                    broad_chunks = await self._retrieve_quiz_chunks(
+                        course_id=course_id,
+                        user_id=user_id,
+                        queries=[
+                            "chapter topics sections themes units headings",
+                            "main concepts government system institutions events people",
+                        ],
+                    )
+                    if not broad_chunks:
+                        fallback = "I do not have enough course material to generate chapter-based cheat sheets yet."
+                        yield f"event: token\ndata: {json.dumps({'text': fallback})}\n\n"
+                        assistant_msg = Message(
+                            conversation_id=conversation_id,
+                            role=MessageRole.ASSISTANT,
+                            content=fallback,
+                            sources=[],
+                        )
+                        db.add(assistant_msg)
+                        await db.commit()
+                        yield "event: done\ndata: {}\n\n"
+                        return
+
+                    topics = await quiz_service.generate_topics(broad_chunks, "ENGLISH")
+                    if not topics:
+                        fallback = "I could not find chapter headings in the course material. Please try another course or document."
+                        yield f"event: token\ndata: {json.dumps({'text': fallback})}\n\n"
+                        assistant_msg = Message(
+                            conversation_id=conversation_id,
+                            role=MessageRole.ASSISTANT,
+                            content=fallback,
+                            sources=[],
+                        )
+                        db.add(assistant_msg)
+                        await db.commit()
+                        yield "event: done\ndata: {}\n\n"
+                        return
+
+                    yield f"event: quiz_topics\ndata: {json.dumps({'language': 'ENGLISH', 'topics': topics, 'mode': 'cheat_sheet'})}\n\n"
+                    yield f"event: token\ndata: {json.dumps({'text': 'Choose a chapter to build the cheat sheet.'})}\n\n"
+                    assistant_msg = Message(
+                        conversation_id=conversation_id,
+                        role=MessageRole.ASSISTANT,
+                        content='Choose a chapter to build the cheat sheet.',
+                        sources=[],
+                    )
+                    db.add(assistant_msg)
+                    await db.commit()
+                    yield "event: done\ndata: {}\n\n"
+                    return
+
+                last_assistant_text = ""
+                for previous_message in reversed(history_messages):
+                    if previous_message.role == MessageRole.ASSISTANT:
+                        last_assistant_text = previous_message.content.strip().lower()
+                        break
+
+                is_typed_cheat_sheet_topic = (
+                    last_assistant_text == "choose a chapter to build the cheat sheet."
+                    and message_text_clean != "Generate Cheat Sheet"
+                    and not message_text_clean.startswith("Explain Concept|")
+                )
+                has_cheat_sheet_prefix = message_text_clean.lower().startswith("cheat sheet:")
+                if has_cheat_sheet_prefix or is_typed_cheat_sheet_topic:
+                    selected_topic = message_text_clean[len("Cheat Sheet:"):].strip() if has_cheat_sheet_prefix else message_text_clean
+                    if not selected_topic:
+                        selected_topic = "chapter overview"
+
+                    yield f"event: cheat_sheet\ndata: {json.dumps({'topic': selected_topic})}\n\n"
+
+                    # Retrieve only the selected chapter/topic.
+                    raw_chunks = await self.retrieval.retrieve_relevant_chunks(
+                        user_id=str(user_id) if user_id else None,
+                        course_id=str(course_id),
+                        query=selected_topic,
+                        top_k=30,
+                    )
+
+                    relevant_chunks = []
+                    for c in raw_chunks:
+                        score = c.get('score', 0.0)
+                        if score >= RELEVANCE_THRESHOLD:
+                            relevant_chunks.append(c)
+
+                    chunks = relevant_chunks[:8]
+                    if not chunks:
+                        fallback = f"I could not find enough material for the chapter '{selected_topic}'. Please choose a different chapter."
+                        yield f"event: token\ndata: {json.dumps({'text': fallback})}\n\n"
+                        assistant_msg = Message(
+                            conversation_id=conversation_id,
+                            role=MessageRole.ASSISTANT,
+                            content=fallback,
+                            sources=[],
+                        )
+                        db.add(assistant_msg)
+                        await db.commit()
+                        yield "event: done\ndata: {}\n\n"
+                        return
+
+                    for c in chunks:
+                        c['text'] = sanitize_chunk_text(c.get('text', ''))
+
+                    history = [{"role": msg.role.value, "content": msg.content} for msg in history_messages]
+                    prompt = build_cheat_sheet_prompt(
+                        context_chunks=chunks,
+                        conversation_history=history,
+                        question=f"Generate a cheat sheet for {selected_topic}",
+                    )
+
+                    full_response = ""
+                    async for text_chunk in llm_client.stream_response(prompt):
+                        if text_chunk:
+                            full_response += text_chunk
+                            yield f"event: token\ndata: {json.dumps({'text': text_chunk})}\n\n"
+
+                    assistant_msg = Message(
+                        conversation_id=conversation_id,
+                        role=MessageRole.ASSISTANT,
+                        content=full_response,
+                        sources=[],
+                    )
+                    db.add(assistant_msg)
+                    await db.commit()
                     yield "event: done\ndata: {}\n\n"
                     return
                 # ----------------------------------------
@@ -198,15 +356,6 @@ class ChatService:
                 # 2.5. Load history + conditionally optimize search query
                 yield f"event: status\ndata: {json.dumps({'message': 'Searching documents...'})}\n\n"
                 
-                # Load history messages for query optimization and building prompt
-                history_result = await db.execute(
-                    select(Message)
-                    .where(Message.conversation_id == conversation_id)
-                    .order_by(Message.created_at.asc())
-                )
-                all_messages = history_result.scalars().all()
-                history_messages = all_messages[:-1] if len(all_messages) > 1 else []
-
                 # OPTIMIZATION: Skip the expensive LLM query-optimization call when:
                 # 1. No conversation history (first message — nothing to resolve)
                 # 2. Message is self-contained (>50 chars — unlikely to be "tell me more")
@@ -235,7 +384,7 @@ class ChatService:
                 else:
                     optimized_query = message_text
                     t_opt_end = time.time()
-                    print(f"⚡ [QUERY OPTIMIZATION] Skipped (no history or self-contained query) | Using raw query: '{message_text}' | {t_opt_end - t_opt_start:.4f}s", flush=True)
+                    print(f"[QUERY OPTIMIZATION] Skipped (no history or self-contained query) | Using raw query: '{message_text}' | {t_opt_end - t_opt_start:.4f}s", flush=True)
 
                 # 3. Retrieve relevant chunks using the (possibly optimized) query
                 t_retrieval_start = time.time()
@@ -247,11 +396,11 @@ class ChatService:
                 )
                 t_retrieval_end = time.time()
                 
-                print(f"🐛 [CHAT DEBUG] Raw chunks retrieved from Qdrant: {len(raw_chunks)}", flush=True)
+                print(f"[CHAT DEBUG] Raw chunks retrieved from Qdrant: {len(raw_chunks)}", flush=True)
                 
                 course_filtered_chunks = raw_chunks
                 
-                print(f"🐛 [CHAT DEBUG] Chunks remaining after course filter: {len(course_filtered_chunks)}", flush=True)
+                print(f"[CHAT DEBUG] Chunks remaining after course filter: {len(course_filtered_chunks)}", flush=True)
                 
                 # RELEVANCE FILTERING: Only keep chunks above the similarity threshold
                 relevant_chunks = []
@@ -263,14 +412,14 @@ class ChatService:
                     else:
                         discarded_chunks.append(c)
                         
-                print(f"🐛 [CHAT DEBUG] Chunks above threshold ({RELEVANCE_THRESHOLD}): {len(relevant_chunks)}", flush=True)
+                print(f"[CHAT DEBUG] Chunks above threshold ({RELEVANCE_THRESHOLD}): {len(relevant_chunks)}", flush=True)
                 
                 # Only use chunks that exceed the relevance threshold to prevent hallucination from unrelated material
                 if relevant_chunks:
                     chunks = relevant_chunks[:5]  # Cap at 5 best chunks for richer context
                 else:
                     chunks = []
-                    print(f"⚠️ [RELEVANCE] All retrieved chunks scored below threshold {RELEVANCE_THRESHOLD}. Treating context as empty.", flush=True)
+                    print(f"[RELEVANCE] All retrieved chunks scored below threshold {RELEVANCE_THRESHOLD}. Treating context as empty.", flush=True)
                 
                 # User requested to remove citations below the chat
                 sources = []
@@ -279,7 +428,7 @@ class ChatService:
                 # DETAILED LOGGING FOR RENDER CLI / BACKEND LOGS
                 # ═══════════════════════════════════════════════════════════
                 print("\n" + "═" * 80, flush=True)
-                print(f"🔍 [RAG RETRIEVAL] Optimized Query: '{optimized_query}'", flush=True)
+                print(f"[RAG RETRIEVAL] Optimized Query: '{optimized_query}'", flush=True)
                 print(f"   Course ID: {course_id}", flush=True)
                 print(f"   Retrieval time: {t_retrieval_end - t_retrieval_start:.3f}s", flush=True)
                 print(f"   Raw chunks from vector DB: {len(raw_chunks)}", flush=True)
@@ -296,7 +445,7 @@ class ChatService:
                     c['text'] = clean_text  # Update the chunk so build_rag_prompt uses the clean version
                     
                     score = c.get('score', 0.0)
-                    print(f"\n  📄 CHUNK #{idx} | Score: {score:.4f} | File: {c.get('filename')} | Page: {c.get('page_number')}", flush=True)
+                    print(f"\n  CHUNK #{idx} | Score: {score:.4f} | File: {c.get('filename')} | Page: {c.get('page_number')}", flush=True)
                     print(f"  {'─' * 60}", flush=True)
                     # Log full chunk text
                     for line in clean_text.split('\n'):
@@ -304,7 +453,7 @@ class ChatService:
                     print(f"  {'─' * 60}", flush=True)
                 
                 if discarded_chunks:
-                    print(f"\n  🗑️ DISCARDED CHUNKS (below {RELEVANCE_THRESHOLD} threshold):", flush=True)
+                    print(f"\n  DISCARDED CHUNKS (below {RELEVANCE_THRESHOLD} threshold):", flush=True)
                     for idx, c in enumerate(discarded_chunks, 1):
                         score = c.get('score', 0.0)
                         print(f"    #{idx} | Score: {score:.4f} | File: {c.get('filename')} | Page: {c.get('page_number')} | Text: {str(c.get('text', ''))[:100]}...", flush=True)
@@ -322,11 +471,18 @@ class ChatService:
 
                 # 5. Build prompt
                 try:
-                    prompt = build_rag_prompt(
-                        context_chunks=chunks,
-                        conversation_history=history,
-                        question=message_text
-                    )
+                    if message_text_clean == "Generate Cheat Sheet":
+                        prompt = build_cheat_sheet_prompt(
+                            context_chunks=chunks,
+                            conversation_history=history,
+                            question=message_text,
+                        )
+                    else:
+                        prompt = build_rag_prompt(
+                            context_chunks=chunks,
+                            conversation_history=history,
+                            question=message_text
+                        )
                 except UngroundedTopicError as e:
                     # Quiz topic isn't covered by the retrieved course
                     # material (chunks came back empty after relevance
@@ -350,7 +506,7 @@ class ChatService:
                 
                 # Log the assembled prompt
                 print("═" * 80, flush=True)
-                print("📝 [ASSEMBLED PROMPT SENT TO LLM]", flush=True)
+                print("[ASSEMBLED PROMPT SENT TO LLM]", flush=True)
                 print("─" * 80, flush=True)
                 for line in prompt.split('\n'):
                     print(f"  {line}", flush=True)
@@ -391,7 +547,7 @@ class ChatService:
                 output_tokens_est = len(full_response) // 4
                 
                 print("\n" + "═" * 80, flush=True)
-                print("📊 [PIPELINE SUMMARY]", flush=True)
+                print("[PIPELINE SUMMARY]", flush=True)
                 print(f"   Query: '{message_text}'", flush=True)
                 print(f"   Retrieval:    {t_retrieval_end - t_retrieval_start:.3f}s", flush=True)
                 print(f"   LLM Response: {t_llm_end - t_llm_start:.3f}s", flush=True)
@@ -577,15 +733,15 @@ class ChatService:
 
                 # Build the assistant's textual response.
                 if result["is_correct"]:
-                    feedback = "✅ **Correct!**"
+                    feedback = "**Correct!**"
                 else:
-                    feedback = f"❌ **Not quite.** The correct answer is **{result['correct_key']}**."
+                    feedback = f"**Not quite.** The correct answer is **{result['correct_key']}**."
                 if result["explanation"]:
                     feedback += f" {result['explanation']}"
 
                 if result["finished"]:
                     summary = (
-                        f"\n\n🎯 **Quiz Complete!**\n\n"
+                        f"\n\n**Quiz Complete!**\n\n"
                         f"**Your Score: {result['score']}/{result['total']}**\n\n"
                         "Would you like 5 more questions? Reply **Yes** or **No**."
                     )
