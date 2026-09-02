@@ -22,57 +22,103 @@ export default function MessageBubble({ message, onSourceClick, onViewNote, onRe
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
 
+  const normalizeFollowUpQuestion = (value: string) => {
+    const trimmed = (value ?? "").trim();
+    if (!trimmed) return "";
+
+    const withoutLabel = trimmed.replace(
+      /^(?:\*{0,2})?(?:Follow(?:\s|-)?Up|Suggested\s+(?:Follow(?:\s|-)?Up\s+)?(?:Questions?|Qs?)|Related\s+Questions?)\s*[:\-]?\s*/i,
+      ""
+    ).trim();
+
+    if (!withoutLabel) return "";
+    return withoutLabel.replace(/^[-*•\d.\s]+/, "").trim();
+  };
+
   const extractFollowUps = (text: string) => {
-    const followUps: string[] = [];
-    let cleanText = text;
+    const rawText = text ?? "";
+    const marker = "===FOLLOWUP_QUESTIONS===";
+    const delimiterIndex = rawText.indexOf(marker);
 
-    // 1. Match bracketed tags like [FOLLOWUP: ...] or [FOLOWUP: ...] or [QUESTION 1: ...]
-    cleanText = cleanText.replace(/\[(?:FOLL?OW-?UP|QUESTION\s*\d*):\s*([\s\S]*?)\]/gi, (match, p1) => {
-      const q = p1.trim();
-      if (q && !followUps.includes(q)) followUps.push(q);
-      return "";
-    });
+    let cleanText = rawText;
+    let followUps: string[] = [];
 
-    // 2. Match unbracketed tags like FOLLOWUP: ... or FOLOWUP: ... or QUESTION 1: ...
-    cleanText = cleanText.replace(/(?:FOLL?OW-?UP|QUESTION\s*\d*):\s*([\s\S]*?)(?=(?:FOLL?OW-?UP|QUESTION\s*\d*):|$)/gi, (match, p1) => {
-      const q = p1.trim();
-      if (q && !followUps.includes(q)) followUps.push(q);
-      return "";
-    });
+    const parseInlineFollowUpBlock = (source: string) => {
+      const inlineMatch = source.match(/(?:^|\n)\s*(?:Follow(?:\s|-)?Up|FOLLOWUP)\s*[:\-]?\s*([\s\S]*?)(?=\n\s*(?:Follow(?:\s|-)?Up|FOLLOWUP|Suggested\s+(?:Follow(?:\s|-)?Up\s+)?(?:Questions?|Qs?)|Related\s+Questions?)\s*[:\-]?|$)/i);
+      if (!inlineMatch) return [];
 
-    const headerRegex = /(?:\n+|^)\s*(?:\*{0,2})?(?:Follow-?up Questions?:?|Suggested (?:Follow-?ups?|Questions?):?|Related Questions?:?)(?:\*{0,2})?\s*\n+([\s\S]*)$/i;
-    const headerMatch = cleanText.match(headerRegex);
+      const tail = (inlineMatch[1] || "").trim();
+      if (!tail) return [];
 
-    if (headerMatch) {
-      const trailingBlock = headerMatch[1];
-      const questions = trailingBlock
-        .split(/\n+/)
-        .map((line) => 
-          line
-            // Remove bullets, numbers, or lingering [FOLLOWUP:] prefixes
-            .replace(/^(?:(?:\[)?(?:FOLL?OW-?UP|QUESTION\s*\d*):?\s*\]?|(?:\d+[\.\)]|[-*•]))\s*/i, '')
-            // Remove trailing closing bracket if it was a malformed tag
-            .replace(/\]\s*$/, '')
-            .trim()
-        )
-        .filter((q) => q.length > 5);
+      return tail
+        .split(/\r?\n|\s*\|\s*/)
+        .map((line) => normalizeFollowUpQuestion(line).replace(/^\[|\]$/g, "").trim())
+        .filter((item) => item && item.length > 3 && /[?]/.test(item));
+    };
 
-      questions.forEach((q) => {
-        if (!followUps.includes(q)) followUps.push(q);
-      });
-
-      cleanText = cleanText.replace(headerRegex, "").trim();
+    if (delimiterIndex !== -1) {
+      cleanText = rawText.slice(0, delimiterIndex).trim();
+      const followUpPayload = rawText.slice(delimiterIndex + marker.length).trim();
+      if (followUpPayload) {
+        try {
+          const parsed = JSON.parse(followUpPayload);
+          if (Array.isArray(parsed)) {
+            followUps = parsed
+              .filter((item): item is string => typeof item === "string")
+              .map((item) => normalizeFollowUpQuestion(item))
+              .filter((item) => item && item.length > 3 && /[?]/.test(item));
+          }
+        } catch {
+          followUps = followUpPayload
+            .split(/\r?\n|\s*\|\s*/)
+            .map((item) => normalizeFollowUpQuestion(item))
+            .filter((item) => item && item.length > 3 && /[?]/.test(item));
+        }
+      }
+      return { cleanText, followUps: Array.from(new Set(followUps)).slice(0, 3) };
     }
 
-    // 4. Remove any leftover trailing header lines, intro sentences, or extra whitespace
+    const inlineFollowUps = parseInlineFollowUpBlock(rawText);
+    if (inlineFollowUps.length > 0) {
+      followUps = Array.from(new Set(inlineFollowUps)).slice(0, 3);
+      cleanText = rawText.replace(/(?:^|\n)\s*(?:Follow(?:\s|-)?Up|FOLLOWUP)\s*[:\-]?\s*[\s\S]*?(?=\n\s*(?:Follow(?:\s|-)?Up|FOLLOWUP|Suggested\s+(?:Follow(?:\s|-)?Up\s+)?(?:Questions?|Qs?)|Related\s+Questions?)\s*[:\-]?|$)/i, "").trim();
+      return { cleanText, followUps };
+    }
+
+    const headerRegex = /(?:\n+|^)\s*(?:\*{0,2})?(?:Follow-?up Questions?:?|Suggested (?:Follow-?ups?|Questions?):?|Related Questions?:?)(?:\*{0,2})?\s*(?:\n+|$)([\s\S]*)$/i;
+    const headerMatch = rawText.match(headerRegex);
+
+    if (headerMatch) {
+      const trailing = (headerMatch[1] || "").trim();
+      const parsedQuestions = trailing
+        .split(/\r?\n/)
+        .map((line) => normalizeFollowUpQuestion(line).replace(/^\[|\]$/g, "").trim())
+        .filter((item) => item && item.length > 3 && /[?]/.test(item));
+      followUps = Array.from(new Set(parsedQuestions)).slice(0, 3);
+      cleanText = rawText.slice(0, headerMatch.index ?? 0).trim();
+    }
+
+    const legacyQuestions = cleanText.match(/\[(?:FOLL?OW-?UP|QUESTION\s*\d*):\s*([\s\S]*?)\]/gi) || [];
+    if (legacyQuestions.length > 0) {
+      legacyQuestions.forEach((item) => {
+        const match = item.match(/\[(?:FOLL?OW-?UP|QUESTION\s*\d*):\s*([\s\S]*?)\]/i);
+        const q = normalizeFollowUpQuestion(match?.[1] ?? "");
+        if (q && !followUps.includes(q)) followUps.push(q);
+      });
+      cleanText = cleanText.replace(/\[(?:FOLL?OW-?UP|QUESTION\s*\d*):\s*([\s\S]*?)\]/gi, "").trim();
+    }
+
     cleanText = cleanText
-      .replace(/(?:\n+|^)\s*(?:\*{0,2})?(?:(?:To further (?:explore|delve|understand|study)[^,\n]*,?\s*)?(?:here are|below are|some)?\s*(?:\d+|three|few)?\s*(?:potential|suggested|relevant|recommended)?\s*(?:follow-?up\s*questions?|questions?|topics?):?|Follow-?up Questions?:?|Suggested (?:Follow-?ups?|Questions?):?|Related Questions?:?)(?:\*{0,2})?\s*$/gi, "")
+      .replace(/(?:\n+|^)\s*(?:\*{0,2})?(?:Follow-?up Questions?:?|Suggested (?:Follow-?ups?|Questions?):?|Related Questions?:?)(?:\*{0,2})?\s*$/i, "")
       .trim();
 
-    return { cleanText, followUps };
+    return { cleanText, followUps: Array.from(new Set(followUps)).slice(0, 3) };
   };
 
   const { cleanText, followUps } = extractFollowUps(message.content);
+  const effectiveFollowUps = (message.follow_up_questions ?? followUps)
+    .map((question) => normalizeFollowUpQuestion(question))
+    .filter((question) => question && /[?]/.test(question));
 
   const handleCopy = () => {
     navigator.clipboard.writeText(cleanText);
@@ -248,9 +294,9 @@ export default function MessageBubble({ message, onSourceClick, onViewNote, onRe
         </div>
         
         {/* Smart Follow-Up Chips */}
-        {isLatest && !isStreaming && onSendFollowUp && followUps.length > 0 && (
+        {isLatest && !isStreaming && onSendFollowUp && effectiveFollowUps.length > 0 && (
           <div className="flex flex-row overflow-x-auto no-scrollbar gap-2 mt-2 px-1 pb-1">
-            {followUps.map((text, i) => {
+            {effectiveFollowUps.map((text, i) => {
               return (
                 <button
                   key={i}

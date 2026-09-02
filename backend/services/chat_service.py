@@ -21,10 +21,49 @@ from llm.prompts import build_rag_prompt, build_cheat_sheet_prompt, build_explai
 from providers.factory import llm_client
 from ingestion.pipeline import fix_malayalam_pdf_font_artifacts
 
+from core.config import settings
 from core.database import async_session_factory
 
-# Minimum cosine similarity score to consider a chunk relevant
+# Minimum cosine similarity score to consider a chunk relevant.
+# The key rule is: if there is real course material on-topic, we must not reject
+# it just because the score distribution is sparse or the best match is only in the
+# 0.30-0.38 range. This is a retrieval-quality guard, not a hard hallucination ban.
 RELEVANCE_THRESHOLD = 0.30
+RELEVANCE_CONFIDENCE_THRESHOLD = 0.38
+MIN_CONFIDENT_CHUNKS = 2
+
+
+def _has_strong_relevance(chunks: list) -> bool:
+    """Return True when the retrieved chunk set is grounded enough to trust.
+
+    Complete calculation:
+    - accept if the strongest chunk is already above the relevance threshold
+    - OR if there are at least 2 moderately relevant chunks whose average stays near
+      the threshold, meaning the topic is consistently supported
+    - reject only when the whole set is weak or unrelated
+
+    This avoids false negatives for valid PDF content that yields a single strong
+    chunk or a couple of mid-range chunks.
+    """
+    if not chunks:
+        return False
+
+    scores = [float(chunk.get('score', 0.0) or 0.0) for chunk in chunks if isinstance(chunk, dict)]
+    if not scores:
+        return False
+
+    best_score = max(scores)
+    avg_score = sum(scores) / len(scores)
+
+    # The strongest chunk is enough if it already clears the relevance threshold.
+    if best_score >= RELEVANCE_THRESHOLD:
+        return True
+
+    # If scores are only moderate, they still count when multiple chunks support the same topic.
+    if len(scores) >= MIN_CONFIDENT_CHUNKS and avg_score >= RELEVANCE_THRESHOLD * 0.95:
+        return True
+
+    return False
 
 # Pre-compiled regex patterns for chunk sanitization (avoid recompiling per-call)
 _RE_LONG_NUMBERS = re.compile(r'[0-9]{15,}')
@@ -435,51 +474,79 @@ class ChatService:
                         
                 print(f"[CHAT DEBUG] Chunks above threshold ({RELEVANCE_THRESHOLD}): {len(relevant_chunks)}", flush=True)
                 
-                # Only use chunks that exceed the relevance threshold to prevent hallucination from unrelated material
+                # Only use chunks that exceed the relevance threshold to prevent hallucination from unrelated material.
+                # We also require a stronger confidence gate before trusting the context, so weakly related matches are rejected.
                 if relevant_chunks:
                     chunks = relevant_chunks[:5]  # Cap at 5 best chunks for richer context
                 else:
                     chunks = []
-                    print(f"[RELEVANCE] All retrieved chunks scored below threshold {RELEVANCE_THRESHOLD}. Treating context as empty.", flush=True)
-                
+                    if settings.DEBUG:
+                        print(f"[RELEVANCE] All retrieved chunks scored below threshold {RELEVANCE_THRESHOLD}. Treating context as empty.", flush=True)
+
+                if not _has_strong_relevance(chunks):
+                    chunks = []
+                    if settings.DEBUG:
+                        scores = [float(c.get('score', 0.0) or 0.0) for c in relevant_chunks]
+                        print(
+                            f"[RELEVANCE] Weak retrieval confidence. "
+                            f"best={max(scores) if scores else 0.0:.4f}, "
+                            f"avg={sum(scores)/len(scores) if scores else 0.0:.4f}, "
+                            f"len={len(scores)}. Treating context as empty.",
+                            flush=True,
+                        )
+
+                # Hard stop: if nothing relevant was retrieved, do not let the LLM fabricate an answer from general knowledge.
+                if not chunks:
+                    malayalam_chars = len(re.findall(r'[\u0D00-\u0D7F]', message_text))
+                    fallback_text = (
+                        "കോഴ്‌സ് വിവരങ്ങളുടെ അടിസ്ഥാനത്തിൽ ഈ ചോദ്യത്തിന് ഉത്തരം നൽകാൻ ആവശ്യമായ വിവരങ്ങൾ ലഭ്യമല്ല."
+                        if malayalam_chars >= 2
+                        else "I do not have enough information to answer this question based on the course materials."
+                    )
+                    yield f"event: token\ndata: {json.dumps({'text': fallback_text})}\n\n"
+
+                    assistant_msg = Message(
+                        conversation_id=conversation_id,
+                        role=MessageRole.ASSISTANT,
+                        content=fallback_text,
+                        sources=[],
+                    )
+                    db.add(assistant_msg)
+                    await db.commit()
+
+                    yield "event: done\ndata: {}\n\n"
+                    return
+
                 # User requested to remove citations below the chat
                 sources = []
-                
-                # ═══════════════════════════════════════════════════════════
-                # DETAILED LOGGING FOR RENDER CLI / BACKEND LOGS
-                # ═══════════════════════════════════════════════════════════
-                print("\n" + "═" * 80, flush=True)
-                print(f"[RAG RETRIEVAL] Optimized Query: '{optimized_query}'", flush=True)
-                print(f"   Course ID: {course_id}", flush=True)
-                print(f"   Retrieval time: {t_retrieval_end - t_retrieval_start:.3f}s", flush=True)
-                print(f"   Raw chunks from vector DB: {len(raw_chunks)}", flush=True)
-                print(f"   After course filter: {len(course_filtered_chunks)}", flush=True)
-                print(f"   Above relevance threshold ({RELEVANCE_THRESHOLD}): {len(relevant_chunks)}", flush=True)
-                print(f"   Discarded (below threshold): {len(discarded_chunks)}", flush=True)
-                print(f"   Chunks sent to LLM: {len(chunks)}", flush=True)
-                print("─" * 80, flush=True)
-                
-                # Log ALL chunks with full text
-                for idx, c in enumerate(chunks, 1):
-                    # Sanitize the chunk text dynamically before feeding to LLM
-                    clean_text = sanitize_chunk_text(c.get('text', ''))
-                    c['text'] = clean_text  # Update the chunk so build_rag_prompt uses the clean version
-                    
-                    score = c.get('score', 0.0)
-                    print(f"\n  CHUNK #{idx} | Score: {score:.4f} | File: {c.get('filename')} | Page: {c.get('page_number')}", flush=True)
-                    print(f"  {'─' * 60}", flush=True)
-                    # Log full chunk text
-                    for line in clean_text.split('\n'):
-                        print(f"    {line}", flush=True)
-                    print(f"  {'─' * 60}", flush=True)
-                
-                if discarded_chunks:
-                    print(f"\n  DISCARDED CHUNKS (below {RELEVANCE_THRESHOLD} threshold):", flush=True)
-                    for idx, c in enumerate(discarded_chunks, 1):
+
+                if settings.DEBUG:
+                    print("\n" + "═" * 80, flush=True)
+                    print(f"[RAG RETRIEVAL] Optimized Query: '{optimized_query}'", flush=True)
+                    print(f"   Course ID: {course_id}", flush=True)
+                    print(f"   Retrieval time: {t_retrieval_end - t_retrieval_start:.3f}s", flush=True)
+                    print(f"   Raw chunks from vector DB: {len(raw_chunks)}", flush=True)
+                    print(f"   After course filter: {len(course_filtered_chunks)}", flush=True)
+                    print(f"   Above relevance threshold ({RELEVANCE_THRESHOLD}): {len(relevant_chunks)}", flush=True)
+                    print(f"   Discarded (below threshold): {len(discarded_chunks)}", flush=True)
+                    print(f"   Chunks sent to LLM: {len(chunks)}", flush=True)
+                    print("─" * 80, flush=True)
+
+                    for idx, c in enumerate(chunks[:3], 1):
+                        clean_text = sanitize_chunk_text(c.get('text', ''))
+                        c['text'] = clean_text
                         score = c.get('score', 0.0)
-                        print(f"    #{idx} | Score: {score:.4f} | File: {c.get('filename')} | Page: {c.get('page_number')} | Text: {str(c.get('text', ''))[:100]}...", flush=True)
-                
-                print("═" * 80 + "\n", flush=True)
+                        print(f"\n  CHUNK #{idx} | Score: {score:.4f} | File: {c.get('filename')} | Page: {c.get('page_number')}", flush=True)
+                        preview = clean_text[:220].replace('\n', ' ')
+                        print(f"  Preview: {preview}...", flush=True)
+
+                    if discarded_chunks:
+                        print(f"\n  DISCARDED CHUNKS (below {RELEVANCE_THRESHOLD} threshold):", flush=True)
+                        for idx, c in enumerate(discarded_chunks[:3], 1):
+                            score = c.get('score', 0.0)
+                            print(f"    #{idx} | Score: {score:.4f} | File: {c.get('filename')} | Page: {c.get('page_number')}", flush=True)
+
+                    print("═" * 80 + "\n", flush=True)
 
                 # Send sources to client (empty list to hide citations)
                 yield f"event: sources\ndata: {json.dumps(sources)}\n\n"
@@ -525,13 +592,13 @@ class ChatService:
                     yield "event: done\ndata: {}\n\n"
                     return
                 
-                # Log the assembled prompt
-                print("═" * 80, flush=True)
-                print("[ASSEMBLED PROMPT SENT TO LLM]", flush=True)
-                print("─" * 80, flush=True)
-                for line in prompt.split('\n'):
-                    print(f"  {line}", flush=True)
-                print("═" * 80 + "\n", flush=True)
+                if settings.DEBUG:
+                    print("═" * 80, flush=True)
+                    print("[ASSEMBLED PROMPT SENT TO LLM]", flush=True)
+                    print("─" * 80, flush=True)
+                    for line in prompt.split('\n')[:40]:
+                        print(f"  {line}", flush=True)
+                    print("═" * 80 + "\n", flush=True)
 
                 # 6. Stream LLM response
                 t_llm_start = time.time()
@@ -566,19 +633,20 @@ class ChatService:
                 pipeline_end = time.time()
                 input_tokens_est = len(prompt) // 4
                 output_tokens_est = len(full_response) // 4
-                
-                print("\n" + "═" * 80, flush=True)
-                print("[PIPELINE SUMMARY]", flush=True)
-                print(f"   Query: '{message_text}'", flush=True)
-                print(f"   Retrieval:    {t_retrieval_end - t_retrieval_start:.3f}s", flush=True)
-                print(f"   LLM Response: {t_llm_end - t_llm_start:.3f}s", flush=True)
-                print(f"   Total:        {pipeline_end - pipeline_start:.3f}s", flush=True)
-                print(f"   ───────────────────────────────", flush=True)
-                print(f"   Chunks sent to LLM: {len(chunks)}", flush=True)
-                print(f"   Prompt length:  {len(prompt)} chars (~{input_tokens_est} tokens)", flush=True)
-                print(f"   Response length: {len(full_response)} chars (~{output_tokens_est} tokens)", flush=True)
-                print(f"   Est. total tokens: ~{input_tokens_est + output_tokens_est}", flush=True)
-                print("═" * 80 + "\n", flush=True)
+
+                if settings.DEBUG:
+                    print("\n" + "═" * 80, flush=True)
+                    print("[PIPELINE SUMMARY]", flush=True)
+                    print(f"   Query: '{message_text}'", flush=True)
+                    print(f"   Retrieval:    {t_retrieval_end - t_retrieval_start:.3f}s", flush=True)
+                    print(f"   LLM Response: {t_llm_end - t_llm_start:.3f}s", flush=True)
+                    print(f"   Total:        {pipeline_end - pipeline_start:.3f}s", flush=True)
+                    print(f"   ───────────────────────────────", flush=True)
+                    print(f"   Chunks sent to LLM: {len(chunks)}", flush=True)
+                    print(f"   Prompt length:  {len(prompt)} chars (~{input_tokens_est} tokens)", flush=True)
+                    print(f"   Response length: {len(full_response)} chars (~{output_tokens_est} tokens)", flush=True)
+                    print(f"   Est. total tokens: ~{input_tokens_est + output_tokens_est}", flush=True)
+                    print("═" * 80 + "\n", flush=True)
 
                 # 8. Send completion event
                 yield "event: done\ndata: {}\n\n"

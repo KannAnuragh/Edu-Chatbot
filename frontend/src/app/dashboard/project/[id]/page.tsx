@@ -26,7 +26,6 @@ export default function ProjectPage() {
 
   // Mobile state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [hasMessages, setHasMessages] = useState(false);
 
   useEffect(() => {
     const handleGlobalDragOver = (e: DragEvent) => {
@@ -95,8 +94,8 @@ export default function ProjectPage() {
   };
 
   const handleUploadComplete = useCallback(
-    (doc: DocType) => {
-      setDocuments((prev) => [doc, ...prev]);
+    (docs: DocType[]) => {
+      setDocuments((prev) => [...docs, ...prev]);
     },
     []
   );
@@ -222,9 +221,7 @@ export default function ProjectPage() {
         <div
           className={cn(
             "absolute top-0 left-0 right-0 px-4 flex items-center justify-between pt-safe z-30 h-14 transition-all duration-300 pointer-events-none",
-            hasMessages
-              ? "bg-[#F2F2F2] border-b border-gray-200/60 shadow-sm"
-              : "bg-transparent border-b border-transparent"
+            "bg-transparent border-b border-transparent"
           )}
         >
           {/* Left: hamburger */}
@@ -276,7 +273,6 @@ export default function ProjectPage() {
               projectId={projectId}
               onSourceClick={handleSourceClick}
               onAttachClick={isAdmin ? () => setShowUpload((prev) => !prev) : undefined}
-              onHasMessagesChange={setHasMessages}
             />
           </Suspense>
         </div>

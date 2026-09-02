@@ -61,12 +61,12 @@ CORE RULES:
 - The Reference Material may contain minor PDF extraction or font artifacts. Correct them into standard, grammatically correct spelling in your response.
 
 6. FOLLOW-UP QUESTIONS:
-- ONLY when you have successfully provided a substantive answer from the Reference Material, include up to 3 short, relevant follow-up questions at the very bottom in the SAME LANGUAGE as the question:
-[FOLLOWUP: Question 1]
-[FOLLOWUP: Question 2]
-[FOLLOWUP: Question 3]
-- NEVER write introductory sentences before follow-up questions (do NOT write "Here are some follow-up questions:", "To further explore:", etc.). Output ONLY the bracketed [FOLLOWUP: ...] lines.
-- If you respond with the fallback message, do NOT include ANY follow-up questions.
+- ONLY when you have successfully provided a substantive answer from the Reference Material, include up to 3 short, relevant follow-up questions after the main answer using the exact delimiter below:
+===FOLLOWUP_QUESTIONS===
+["Question 1","Question 2","Question 3"]
+- The delimiter must appear on its own line immediately after the final sentence of the main answer.
+- After the delimiter, output ONLY valid JSON with a top-level array of strings, not markdown bullets, not bracketed [FOLLOWUP: ...] lines, and not any introduction text.
+- If the answer is a fallback response, do NOT include the delimiter or any follow-up questions.
 
 7. QUICK COMMANDS:
 - If the message is EXACTLY "Explain a concept", respond EXACTLY with: "Sure, which concept would you like me to explain?"
@@ -99,11 +99,11 @@ Do not write anything else, do not suggest alternative topics from the text, and
 - Format your response with clear paragraphs, bullet points, and bold terms where helpful for studying.
 - Translate from the Malayalam reference material if the question is in English.
 - Start directly with the answer (no preambles like "Based on the text").
-3. At the very end of a successful answer (NOT on fallback), provide up to 3 follow-up questions in {target_language} formatted as:
-[FOLLOWUP: Question 1]
-[FOLLOWUP: Question 2]
-[FOLLOWUP: Question 3]
-Do NOT write any introductory text like "Here are some follow-up questions:" before them."""
+3. At the very end of a successful answer (NOT on fallback), insert the exact delimiter on its own line:
+===FOLLOWUP_QUESTIONS===
+Then output a valid JSON array of up to 3 strings in {target_language}, for example:
+["Question 1","Question 2","Question 3"]
+Do NOT write any introductory text before the delimiter or after it."""
 
 CHEAT_SHEET_PROMPT_TEMPLATE = """Reference Material:
 {context}

@@ -327,15 +327,23 @@ class CloudflareVectorDBProvider(BaseVectorDBProvider):
         
         results = []
         for match in matches_raw:
-            if "metadata" in match:
-                result = dict(match["metadata"])
-                # CRITICAL: Include the similarity score in results
-                result["score"] = match.get("score", 0.0)
-                results.append(result)
-                
+            if "metadata" not in match:
+                continue
+
+            result = dict(match["metadata"])
+            result["score"] = match.get("score", 0.0)
+
+            # Guardrail: never allow cross-course retrieval to leak into the answer context.
+            course_id_value = str(result.get("course_id", "")).strip().lower()
+            allowed_course_id = str(course_id).strip().lower()
+            if course_id_value and course_id_value != allowed_course_id:
+                continue
+
+            results.append(result)
+
         # Sort by score descending (highest relevance first)
         results.sort(key=lambda x: x.get("score", 0.0), reverse=True)
-        
+
         return results
 
     async def delete_document_vectors(self, user_id: str, document_id: str):

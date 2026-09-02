@@ -6,8 +6,16 @@ Handles searching Qdrant and formatting sources.
 
 from typing import List, Dict, Any, Optional
 import asyncio
+from functools import lru_cache
 
+from core.config import settings
 from providers.factory import embedding_model, get_vector_db_client
+
+
+@lru_cache(maxsize=256)
+def _cached_encode_query(query: str):
+    """Cache repeated embeddings for the same query string to avoid re-encoding identical prompts."""
+    return embedding_model.encode_query(query)
 
 
 class RetrievalService:
@@ -27,9 +35,13 @@ class RetrievalService:
         Embed the query and search Qdrant for relevant chunks.
         Strictly scoped to the user's isolated collection and filtered by course.
         """
-        # 1. Embed query (Run CPU-bound task in a separate thread to prevent blocking event loop)
-        query_vector = await asyncio.to_thread(embedding_model.encode_query, query)
-        
+        if not query or not query.strip():
+            return []
+
+        # 1. Embed the query with a small in-memory cache to avoid re-encoding repeated prompts.
+        query_text = query.strip()
+        query_vector = await asyncio.to_thread(_cached_encode_query, query_text)
+
         # 2. Search Vector DB
         results = await self.vector_db.search(
             user_id=user_id,
@@ -37,7 +49,7 @@ class RetrievalService:
             query_vector=query_vector,
             limit=top_k
         )
-        
+
         return results
 
     def format_sources(self, chunks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

@@ -91,16 +91,31 @@ class QdrantVectorDBProvider(BaseVectorDBProvider):
             results = await self.async_client.search(
                 collection_name=self.COLLECTION_NAME,
                 query_vector=query_vector,
-                limit=limit
+                limit=limit,
+                query_filter=Filter(
+                    must=[
+                        FieldCondition(
+                            key="course_id",
+                            match=MatchValue(value=str(course_id))
+                        )
+                    ]
+                )
             )
-            
+
             print(f"🐛 [QDRANT DEBUG] Search returned {len(results)} hits.", flush=True)
-            
-            # Include similarity score in results
-            return [
-                {**hit.payload, "score": hit.score}
-                for hit in results
-            ]
+
+            # Include similarity score in results and enforce course scoping.
+            scoped_results = []
+            allowed_course_id = str(course_id).strip().lower()
+            for hit in results:
+                payload = dict(hit.payload or {})
+                payload["score"] = hit.score
+                course_value = str(payload.get("course_id", "")).strip().lower()
+                if course_value and course_value != allowed_course_id:
+                    continue
+                scoped_results.append(payload)
+
+            return scoped_results
         except Exception as e:
             print(f"Qdrant Search Error: {e}", flush=True)
             import traceback

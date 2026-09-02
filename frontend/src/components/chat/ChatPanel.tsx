@@ -50,6 +50,8 @@ const SUGGESTIONS = [
   },
 ];
 
+const FOLLOWUP_DELIMITER = "===FOLLOWUP_QUESTIONS===";
+
 const SPECIAL_COMMAND_OPTIONS = {
   explain: {
     label: "Explain",
@@ -75,6 +77,72 @@ const SPECIAL_COMMAND_OPTIONS = {
 } as const;
 
 type SpecialCommandKey = keyof typeof SPECIAL_COMMAND_OPTIONS;
+
+const normalizeFollowUpQuestion = (value: string) => {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return "";
+
+  const withoutLabel = trimmed.replace(
+    /^(?:\*{0,2})?(?:Follow(?:\s|-)?Up|Suggested\s+(?:Follow(?:\s|-)?Up\s+)?(?:Questions?|Qs?)|Related\s+Questions?)\s*[:\-]?\s*/i,
+    ""
+  ).trim();
+
+  if (!withoutLabel) return "";
+  return withoutLabel.replace(/^[-*•\d.\s]+/, "").trim();
+};
+
+const splitFollowUpText = (text: string) => {
+  const rawText = text ?? "";
+  const delimiterIndex = rawText.indexOf(FOLLOWUP_DELIMITER);
+  if (delimiterIndex !== -1) {
+    const mainText = rawText.slice(0, delimiterIndex).trim();
+    const followUpPayload = rawText.slice(delimiterIndex + FOLLOWUP_DELIMITER.length).trim();
+
+    let followUps: string[] = [];
+    if (followUpPayload) {
+      try {
+        const parsed = JSON.parse(followUpPayload);
+        if (Array.isArray(parsed)) {
+          followUps = parsed
+            .filter((item): item is string => typeof item === "string")
+            .map((item) => normalizeFollowUpQuestion(item))
+            .filter((item) => item && item.length > 3 && /[?]/.test(item));
+        }
+      } catch {
+        followUps = followUpPayload
+          .split(/\r?\n|\s*\|\s*/)
+          .map((item) => normalizeFollowUpQuestion(item))
+          .filter((item) => item && item.length > 3 && /[?]/.test(item));
+      }
+    }
+
+    return { mainText, followUps: Array.from(new Set(followUps)).slice(0, 3) };
+  }
+
+  const inlineMatch = rawText.match(/(?:^|\n)\s*(?:Follow(?:\s|-)?Up|FOLLOWUP)\s*[:\-]?\s*([\s\S]*?)(?=\n\s*(?:Follow(?:\s|-)?Up|FOLLOWUP|Suggested\s+(?:Follow(?:\s|-)?Up\s+)?(?:Questions?|Qs?)|Related\s+Questions?)\s*[:\-]?|$)/i);
+  if (inlineMatch) {
+    const trailing = (inlineMatch[1] || "").trim();
+    const followUps = trailing
+      .split(/\r?\n|\s*\|\s*/)
+      .map((line) => normalizeFollowUpQuestion(line).replace(/^\[|\]$/g, "").trim())
+      .filter((item) => item && item.length > 3 && /[?]/.test(item));
+    const mainText = rawText.replace(inlineMatch[0], "").trim();
+    return { mainText, followUps: Array.from(new Set(followUps)).slice(0, 3) };
+  }
+
+  const headerMatch = rawText.match(/(?:\n+|^)\s*(?:\*{0,2})?(?:Follow-?up Questions?:?|Suggested (?:Follow-?ups?|Questions?):?|Related Questions?:?)(?:\*{0,2})?\s*(?:\n+|$)([\s\S]*)$/i);
+  if (headerMatch) {
+    const trailing = (headerMatch[1] || "").trim();
+    const followUps = trailing
+      .split(/\r?\n/)
+      .map((line) => normalizeFollowUpQuestion(line).replace(/^\[|\]$/g, "").trim())
+      .filter((item) => item && item.length > 3 && /[?]/.test(item));
+    const mainText = rawText.slice(0, headerMatch.index ?? 0).trim();
+    return { mainText, followUps: Array.from(new Set(followUps)).slice(0, 3) };
+  }
+
+  return { mainText: rawText.trim(), followUps: [] as string[] };
+};
 
 const parseCheatSheetMarkdown = (markdown: string): CheatSheet => {
   const normalized = markdown.trim();
@@ -193,12 +261,12 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
     }
 
     let lastTickTime = performance.now();
+    let lastScheduledContent = "";
 
     const step = (now: number) => {
       const elapsed = now - lastTickTime;
 
-      // Smooth word-rate ticker running every ~24ms
-      if (elapsed >= 24) {
+      if (elapsed >= 18) {
         lastTickTime = now;
 
         const target = streamTargetRef.current;
@@ -209,16 +277,13 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
           const remainingWords = remainingText.trim().split(/\s+/).filter(Boolean);
           const backlogCount = remainingWords.length;
 
-          // Determine words to append per tick:
-          // 1-2 words per tick for smooth ChatGPT/Gemini cadence
           let wordsToAppend = 1;
-          if (backlogCount > 40) {
-            wordsToAppend = Math.min(5, Math.ceil(backlogCount / 8));
-          } else if (backlogCount > 15) {
+          if (backlogCount > 30) {
+            wordsToAppend = 3;
+          } else if (backlogCount > 12) {
             wordsToAppend = 2;
           }
 
-          // Slice target text at the Nth word boundary to prevent word slicing
           let sliceEnd = 0;
           let wordMatches = 0;
           const wordRegex = /\S+(?:\s+|$)/g;
@@ -235,9 +300,14 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
           const nextContent = target.slice(0, displayed.length + sliceEnd);
           streamDisplayedRef.current = nextContent;
 
+          const { mainText, followUps } = splitFollowUpText(nextContent);
+          lastScheduledContent = mainText;
+
           setMessages((prev) =>
             prev.map((msg) =>
-              msg.id === assistantMsgId ? { ...msg, content: nextContent } : msg
+              msg.id === assistantMsgId
+                ? { ...msg, content: mainText, follow_up_questions: followUps }
+                : msg
             )
           );
         }
@@ -248,6 +318,15 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
         animationFrameIdRef.current = requestAnimationFrame(step);
       } else {
         animationFrameIdRef.current = null;
+        const finalSplit = splitFollowUpText(streamTargetRef.current);
+        streamDisplayedRef.current = finalSplit.mainText;
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantMsgId
+              ? { ...msg, content: finalSplit.mainText, follow_up_questions: finalSplit.followUps }
+              : msg
+          )
+        );
         setIsTyping(false);
       }
     };
@@ -265,11 +344,12 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
 
   useEffect(() => {
     const greetings = [
-      <>Welcome<br />aboard, {firstName}!</>,
+      <>Welcome aboard,<br /> {firstName}!</>,
       <>Ready to<br />learn, {firstName}?</>,
       <>What's on your<br />mind, {firstName}?</>,
       <>Let's study,<br />{firstName}!</>,
-      <>Hi {firstName},<br />how can I help?</>
+      <>Hi {firstName},<br />how can I help?</>,
+      <>Lets get <br />started, {firstName}! </>
     ];
     setGreeting(greetings[Math.floor(Math.random() * greetings.length)]);
   }, [firstName]);
@@ -349,10 +429,10 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
     if (scrollRef.current) {
       scrollRef.current.scrollTo({
         top: scrollRef.current.scrollHeight,
-        behavior: isTyping ? 'smooth' : 'auto'
+        behavior: 'auto'
       });
     }
-  }, [isTyping]);
+  }, []);
 
   const handleScrollToMessage = useCallback((id: string) => {
     // Suppress auto-scroll so the useEffect scrollToBottom doesn't undo this jump
@@ -698,20 +778,6 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
     }
 
     if (title === "Generate Cheat Sheet") {
-      setIsCheatSheetSelectionMode(true);
-      const existing = readStoredCheatSheet(projectId, user?.id || null);
-      if (existing) {
-        const now = new Date().toISOString();
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content: existing.raw_markdown || "Here is your saved high-yield cheat sheet.",
-          created_at: now,
-          cheatSheet: existing,
-        };
-        setMessages((prev) => [...prev, { id: Date.now().toString(), role: "user", content: "Generate Cheat Sheet", created_at: now }, assistantMessage]);
-        return;
-      }
       activateSpecialCommand("cheat_sheet");
       return;
     }
@@ -1031,34 +1097,38 @@ export default function ChatPanel({ projectId, onSourceClick, onAttachClick, onV
             <div className="pointer-events-none absolute inset-x-0 top-0 h-1/2 rounded-t-2xl bg-gradient-to-b from-white/40 to-transparent" />
 
             <div className="relative z-10 flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowCommandMenu((prev) => !prev)}
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white/80 text-slate-700 shadow-sm transition-all hover:border-[#1C4D8C]/30 hover:text-[#1C4D8C]"
-                aria-label="Open special actions"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
+              {messages.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowCommandMenu((prev) => !prev)}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white/80 text-slate-700 shadow-sm transition-all hover:border-[#1C4D8C]/30 hover:text-[#1C4D8C]"
+                    aria-label="Open special actions"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                      <path d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                  </button>
 
-              {showCommandMenu && (
-                <div className="absolute bottom-full left-0 mb-2 flex w-44 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-md">
-                  {(Object.entries(SPECIAL_COMMAND_OPTIONS) as Array<[SpecialCommandKey, (typeof SPECIAL_COMMAND_OPTIONS)[SpecialCommandKey]]>).map(([key, option]) => {
-                    const Icon = option.icon;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => activateSpecialCommand(key)}
-                        className="flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-[#1C4D8C]"
-                      >
-                        <Icon size={16} className="text-[#1C4D8C]" />
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                  {showCommandMenu && (
+                    <div className="absolute bottom-full left-0 mb-2 flex w-44 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 p-1 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-md">
+                      {(Object.entries(SPECIAL_COMMAND_OPTIONS) as Array<[SpecialCommandKey, (typeof SPECIAL_COMMAND_OPTIONS)[SpecialCommandKey]]>).map(([key, option]) => {
+                        const Icon = option.icon;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => activateSpecialCommand(key)}
+                            className="flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-[#1C4D8C]"
+                          >
+                            <Icon size={16} className="text-[#1C4D8C]" />
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

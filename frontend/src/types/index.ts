@@ -66,6 +66,7 @@ export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  follow_up_questions?: string[];
   sources?: SourceReference[];
   created_at: string;
   cheatSheet?: CheatSheet;
